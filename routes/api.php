@@ -36,16 +36,15 @@ Route::middleware('auth:api')->get('/secure-route', function () {
 });
 
 Route::middleware('auth:sanctum')->group(function () {
-    
+    // Rutas para productos
+    Route::get('/products', [ProductController::class, 'index']);
+    Route::post('/products', [ProductController::class, 'create']);
+    Route::get('/products/{id}', [ProductController::class, 'get']);
+    Route::put('/products/{id}', [ProductController::class, 'update']);
+    Route::delete('/products/{id}', [ProductController::class, 'delete']);
+
     
 });
-
-// Rutas para productos
-Route::get('/products', [ProductController::class, 'index']);
-Route::post('/products', [ProductController::class, 'create']);
-Route::get('/products/{id}', [ProductController::class, 'get']);
-Route::put('/products/{id}', [ProductController::class, 'update']);
-Route::delete('/products/{id}', [ProductController::class, 'delete']);
 
 // Rutas para inventario
 Route::get('/inventory', [InventoryController::class, 'index']);
@@ -121,6 +120,8 @@ Route::post('/roles', [RolesController::class, 'store']);
 Route::put('/roles/{id}', [RolesController::class, 'put']);
 Route::get('/roles/{id}', [RolesController::class, 'show']);
 Route::delete('/roles/{id}', [RolesController::class, 'destroy']);
+
+
 
 
 

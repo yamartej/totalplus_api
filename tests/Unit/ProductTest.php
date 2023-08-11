@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Models\Category;
 use Tests\TestCase;
 use App\Models\Product;
+use App\Models\User;
 use Database\Factories\ProductFactory; // Importa el Factory correcto
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
@@ -16,9 +17,16 @@ class ProductTest extends TestCase
 
     public function test_all_productos()
     {
+        $user = User::factory()->create();
+        $token = $user->createToken('test-token')->plainTextToken;
+
         Product::factory()->count(3)->create();
 
-        $response = $this->get('/api/products');
+        $response = $this->withHeaders([
+            'Authorization' => "Bearer $token",
+        ])->get('/api/products');
+
+        //$response = $this->get('/api/products');
 
         $response->assertStatus(200);
 
@@ -51,6 +59,9 @@ class ProductTest extends TestCase
         $response->assertStatus(Response::HTTP_CREATED);
 
         $this->assertDatabaseHas('products', $product);*/
+
+        $user = User::factory()->create();
+        $token = $user->createToken('test-token')->plainTextToken;
         
         $category = Category::factory()->create();
 
@@ -62,8 +73,12 @@ class ProductTest extends TestCase
             'image' => 'https://ejemplo.com/imagen.jpg',
             'category_id' => $category->id,
         ];
+
+        $response = $this->withHeaders([
+            'Authorization' => "Bearer $token",
+        ])->postJson('/api/products', $data);
     
-        $response = $this->postJson('/api/products/', $data);
+        //$response = $this->postJson('/api/products/', $data);
     
         $response->assertStatus(201)
             ->assertJson($data);
@@ -71,6 +86,9 @@ class ProductTest extends TestCase
 
     public function test_get_product()
     {
+        $user = User::factory()->create();
+        $token = $user->createToken('test-token')->plainTextToken;
+
         // Crear un producto de prueba en la base de datos usando el factory
         $category = Category::factory()->create();
         $product = Product::factory()->create([
@@ -80,7 +98,11 @@ class ProductTest extends TestCase
         ]);
 
         // Hacer la solicitud GET a la ruta para obtener el producto
-        $response = $this->getJson('/api/products/' . $product->id);
+        $response = $this->withHeaders([
+            'Authorization' => "Bearer $token",
+        ])->getJson('/api/products/' . $product->id);
+
+        //$response = $this->getJson('/api/products/' . $product->id);
 
         // Verificar que se haya obtenido el producto con éxito y que la respuesta sea 200 (OK)
         $response->assertStatus(200);
@@ -96,6 +118,9 @@ class ProductTest extends TestCase
 
     public function test_put_product()
     {
+        $user = User::factory()->create();
+        $token = $user->createToken('test-token')->plainTextToken;
+
         $category = Category::factory()->create();
         $product = Product::factory()->create();
 
@@ -105,7 +130,11 @@ class ProductTest extends TestCase
             'category_id' => $category->id,
         ];
 
-        $response = $this->putJson('/api/products/'. $product->id, $data_update );
+        $response = $this->withHeaders([
+            'Authorization' => "Bearer $token",
+        ])->putJson('/api/products/' . $product->id, $data_update);
+
+        //$response = $this->putJson('/api/products/'. $product->id, $data_update );
         $response->assertStatus(200);
  
          $response->assertJson([
@@ -118,9 +147,16 @@ class ProductTest extends TestCase
 
     public function test_delete_product()
     {
+        $user = User::factory()->create();
+        $token = $user->createToken('test-token')->plainTextToken;
+
         $product = Product::factory()->create();
         
-        $response = $this->deleteJson('/api/products/'. $product->id);
+        $response = $this->withHeaders([
+            'Authorization' => "Bearer $token",
+        ])->deleteJson('/api/products/' . $product->id);
+
+        //$response = $this->deleteJson('/api/products/'. $product->id);
 
         $response->assertStatus(204);
 

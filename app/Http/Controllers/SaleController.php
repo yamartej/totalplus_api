@@ -17,11 +17,13 @@ class SaleController extends Controller
     public function store(Request $request)
     {
         $request->validate([
+            'product_id' => 'required|exists:products,id',
             'customer_id' => 'required|exists:customers,id',
             'quantity' => 'required|integer|min:0',
         ]);
 
         $sales = Sale::create([
+            'product_id' => $request->input('product_id'),
             'customer_id' => $request->input('customer_id'),
             'quantity' => $request->input('quantity'),
         ]);
@@ -49,6 +51,7 @@ class SaleController extends Controller
         }
 
         $request->validate([
+            'product_id' => 'required|exists:products,id',
             'customer_id' => 'required|exists:customers,id',
             'quantity' => 'required|integer|min:0',
         ]);

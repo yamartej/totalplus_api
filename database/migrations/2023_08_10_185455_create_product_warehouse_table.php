@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class TestConnection extends Migration
+class CreateProductWarehouseTable extends Migration
 {
     /**
      * Run the migrations.
@@ -13,9 +13,11 @@ class TestConnection extends Migration
      */
     public function up()
     {
-        Schema::create('test_table', function (Blueprint $table) {
+        Schema::create('product_warehouse', function (Blueprint $table) {
             $table->id();
-            $table->string('test_field');
+            $table->foreignId('product_id')->constrained('products')->onDelete('cascade');
+            $table->foreignId('warehouse_id')->constrained('warehouses')->onDelete('cascade');
+            $table->integer('quantity')->default(0);
             $table->timestamps();
         });
     }
@@ -27,6 +29,6 @@ class TestConnection extends Migration
      */
     public function down()
     {
-        //
+        Schema::dropIfExists('product_warehouse');
     }
 }

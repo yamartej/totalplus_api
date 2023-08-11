@@ -16,7 +16,10 @@ class ProductFactory extends Factory
             'description' => $this->faker->paragraph,
             'price' => $this->faker->randomFloat(2, 10, 1000),
             'image' => $this->faker->imageUrl(),
-            'category' => $this->faker->word,
+            'category_id' => function () {
+                // Aquí puedes usar un factory de Product para obtener un product_id válido
+                return \App\Models\Category::factory()->create()->id;
+            },
         ];
     }
 }

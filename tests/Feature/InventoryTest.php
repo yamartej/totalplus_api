@@ -59,6 +59,6 @@ class InventoryTest extends TestCase
 
         $response->assertStatus(204);
 
-        $this->assertDatabaseMissing('inventory', ['id' => $inventory->id]);
+        $this->assertDatabaseMissing('inventories', ['id' => $inventory->id]);
     }
 }

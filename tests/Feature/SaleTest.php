@@ -14,8 +14,10 @@ class SaleTest extends TestCase
     public function test_store_sale()
     {
         $customer = \App\Models\Customer::factory()->create();
+        $product = \App\Models\Product::factory()->create();
 
         $data = [
+            'product_id' => $product->id, 
             'customer_id' => $customer->id, 
             'quantity' => $this->faker->numberBetween($min = 1, $max = 10),
         ];
@@ -29,7 +31,8 @@ class SaleTest extends TestCase
     public function test_show_sale()
     {
         $sale = \App\Models\Sale::factory()->create(['quantity' => 5]);
-        $customer = \App\Models\Customer::factory()->create();
+        //$customer = \App\Models\Customer::factory()->create();
+        $product = \App\Models\Product::factory()->create();
 
         $response = $this->getJson('/api/sales/' . $sale->id);
 
@@ -44,9 +47,11 @@ class SaleTest extends TestCase
     {
         $customer = \App\Models\Customer::factory()->create();
         $sale = \App\Models\Sale::factory()->create();
+        $product = \App\Models\Product::factory()->create();
         $quantity =  5;
         
         $data = [
+            'product_id' => $product->id, 
             'customer_id' => $customer->id, 
             'quantity' => $quantity,
         ];

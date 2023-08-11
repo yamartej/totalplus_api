@@ -20,7 +20,7 @@ class ProductController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'required|string',
-            'price' => 'required|numeric|min:0',
+            'category_id' => 'required|exists:categories,id',
         ]);
        
         // Crear el nuevo producto
@@ -29,7 +29,7 @@ class ProductController extends Controller
             'description' => $request->input('description'),
             'price' => $request->input('price'),
             'image' => $request->input('image'),
-            'category' => $request->input('category'),
+            'category_id' => $request->input('category_id'),
         ]);
 
         // Responder con el producto creado y el código de estado 201 (Recurso creado)
@@ -64,7 +64,7 @@ class ProductController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'required|string',
-            'price' => 'required|numeric|min:0',
+            'category_id' => 'required|exists:categories,id',
         ]);
 
         // Actualizar los datos del producto
@@ -73,7 +73,7 @@ class ProductController extends Controller
             'description' => $request->input('description'),
             'price' => $request->input('price'),
             'image' => $request->input('image'),
-            'category' => $request->input('category'),
+            'category_id' => $request->input('category_id'),
         ]);
 
         // Responder con el producto actualizado y el código de estado 200 (OK)

@@ -15,6 +15,12 @@ use App\Http\Controllers\CashRegisterController;
 use App\Http\Controllers\RolesController;
 use App\Models\Sale;
 use App\Models\Supplier;
+use Illuminate\Support\Facades\Auth;
+
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\RegisterController;
+
+
 
 /*
 |--------------------------------------------------------------------------
@@ -26,16 +32,18 @@ use App\Models\Supplier;
 | is assigned the "api" middleware group. Enjoy building your API!
 |
 */
+// Ruta de login
+Route::post('/login', [LoginController::class, 'login']);
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
-});
+// Ruta de logout
+Route::post('/logout', [LoginController::class, 'logout']);
 
-Route::middleware('auth:api')->get('/secure-route', function () {
-    // Solo los usuarios autenticados podrán acceder aquí
-});
+// Ruta de registro de usuario
+Route::post('/register', [RegisterController::class, 'register']);
 
 Route::middleware('auth:sanctum')->group(function () {
+    // Rutas protegidas aquí
+
     // Rutas para productos
     Route::get('/products', [ProductController::class, 'index']);
     Route::post('/products', [ProductController::class, 'create']);
@@ -43,15 +51,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/products/{id}', [ProductController::class, 'update']);
     Route::delete('/products/{id}', [ProductController::class, 'delete']);
 
-    
+    // Rutas para inventario
+    Route::get('/inventory', [InventoryController::class, 'index']);
+    Route::post('/inventory', [InventoryController::class, 'create']);
+    Route::get('/inventory/{id}', [InventoryController::class, 'get']);
+    Route::put('/inventory/{id}', [InventoryController::class, 'update']);
+    Route::delete('/inventory/{id}', [InventoryController::class, 'delete']);
+
+    // Agrega las demás rutas protegidas aquí
 });
 
-// Rutas para inventario
-Route::get('/inventory', [InventoryController::class, 'index']);
-Route::post('/inventory', [InventoryController::class, 'create']);
-Route::get('/inventory/{id}', [InventoryController::class, 'get']);
-Route::put('/inventory/{id}', [InventoryController::class, 'update']);
-Route::delete('/inventory/{id}', [InventoryController::class, 'delete']);
 
 // Rutas para cliente
 Route::get('/customers', [CustomerController::class, 'index']);

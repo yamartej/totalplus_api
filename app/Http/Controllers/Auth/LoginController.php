@@ -56,7 +56,7 @@ class LoginController extends Controller
             $user = Auth::guard('web')->user();
             $token = $user->createToken('my-token-name')->plainTextToken;
 
-            return response()->json(['token' => $token]);
+            return response()->json(['token' => $token, 'user' => $user]);
         }
 
         throw ValidationException::withMessages([

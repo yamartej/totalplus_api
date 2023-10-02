@@ -35,14 +35,13 @@ use App\Http\Controllers\Auth\RegisterController;
 // Ruta de login
 Route::post('/login', [LoginController::class, 'login']);
 
-// Ruta de logout
-Route::post('/logout', [LoginController::class, 'logout']);
-
 // Ruta de registro de usuario
 Route::post('/register', [RegisterController::class, 'register']);
 
 Route::middleware('auth:sanctum')->group(function () {
     // Rutas protegidas aquí
+    // Ruta de logout
+    Route::post('/logout', [LoginController::class, 'logout']);
 
     // Rutas para productos
     Route::get('/products', [ProductController::class, 'index']);

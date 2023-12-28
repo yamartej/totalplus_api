@@ -9,6 +9,10 @@ use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Response;
+
+
+
 
 class LoginController extends Controller
 {
@@ -48,15 +52,21 @@ class LoginController extends Controller
             'email' => 'required|email',
             'password' => 'required',
         ]);
-
+        
         $credentials = $request->only('email', 'password');
 
         if (Auth::guard('web')->attempt($credentials)) {
             // Autenticación exitosa, generar token de autenticación con Sanctum
             $user = Auth::guard('web')->user();
             $token = $user->createToken('my-token-name')->plainTextToken;
-
-            return response()->json(['token' => $token, 'user' => $user]);
+            $expiration = now()->addMinutes(config('sanctum.expiration'));
+            return response()->json([
+                'token' => $token,
+                'user' => $user,
+                'expiration' => $expiration,
+            ]);
+            
+            
         }
 
         throw ValidationException::withMessages([
@@ -70,6 +80,5 @@ class LoginController extends Controller
 
         return response()->json(['message' => 'Logged out']);
     }
-
-    
+        
 }

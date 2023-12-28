@@ -62,7 +62,7 @@ class ProductTest extends TestCase
 
         $user = User::factory()->create();
         $token = $user->createToken('test-token')->plainTextToken;
-        
+
         $category = Category::factory()->create();
 
         ProductFactory::new()->create(); // Utiliza el Factory correctamente
@@ -77,9 +77,9 @@ class ProductTest extends TestCase
         $response = $this->withHeaders([
             'Authorization' => "Bearer $token",
         ])->postJson('/api/products', $data);
-    
+
         //$response = $this->postJson('/api/products/', $data);
-    
+
         $response->assertStatus(201)
             ->assertJson($data);
     }
@@ -136,13 +136,12 @@ class ProductTest extends TestCase
 
         //$response = $this->putJson('/api/products/'. $product->id, $data_update );
         $response->assertStatus(200);
- 
-         $response->assertJson([
+
+        $response->assertJson([
             'id' => $product->id,
             'name' => $data_update['name'],
             'description' => $data_update['description'],
-         ]);
-
+        ]);
     }
 
     public function test_delete_product()
@@ -151,7 +150,7 @@ class ProductTest extends TestCase
         $token = $user->createToken('test-token')->plainTextToken;
 
         $product = Product::factory()->create();
-        
+
         $response = $this->withHeaders([
             'Authorization' => "Bearer $token",
         ])->deleteJson('/api/products/' . $product->id);

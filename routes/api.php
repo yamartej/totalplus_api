@@ -13,12 +13,14 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\CashRegisterController;
 use App\Http\Controllers\RolesController;
+use App\Http\Controllers\Auth\VerificationController;
 use App\Models\Sale;
 use App\Models\Supplier;
 use Illuminate\Support\Facades\Auth;
 
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\TokenVerificationController;
 
 
 
@@ -42,6 +44,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // Rutas protegidas aquí
     // Ruta de logout
     Route::post('/logout', [LoginController::class, 'logout']);
+    Route::get('/verify-token', [VerificationController::class, 'verifyToken']);
+    Route::get('/refresh-token', [VerificationController::class, 'refreshToken']);
+
+
 
     // Rutas para productos
     Route::get('/products', [ProductController::class, 'index']);
@@ -57,9 +63,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/inventory/{id}', [InventoryController::class, 'update']);
     Route::delete('/inventory/{id}', [InventoryController::class, 'delete']);
 
+    // Rutas para Agregar Categorias de los productos
+    Route::get('/categories', [CategoryController::class, 'index']);
+    Route::post('/categories', [CategoryController::class, 'store']);
+    Route::put('/categories/{id}', [CategoryController::class, 'put']);
+    Route::get('/categories/{id}', [CategoryController::class, 'show']);
+    Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
+
     // Agrega las demás rutas protegidas aquí
 });
-
 
 // Rutas para cliente
 Route::get('/customers', [CustomerController::class, 'index']);
@@ -101,12 +113,7 @@ Route::put('/purchaseorderproducts/{id}', [PurchaseOrderProductController::class
 Route::get('/purchaseorderproducts/{id}', [PurchaseOrderProductController::class, 'show']);
 Route::delete('/purchaseorderproducts/{id}', [PurchaseOrderProductController::class, 'destroy']);
 
-// Rutas para Agregar Categorias de los productos
-Route::get('/categories', [CategoryController::class, 'index']);
-Route::post('/categories', [CategoryController::class, 'store']);
-Route::put('/categories/{id}', [CategoryController::class, 'put']);
-Route::get('/categories/{id}', [CategoryController::class, 'show']);
-Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
+
 
 // Rutas para Agregar Almacenes de los productos
 Route::get('/warehouses', [WarehouseController::class, 'index']);
@@ -128,8 +135,3 @@ Route::post('/roles', [RolesController::class, 'store']);
 Route::put('/roles/{id}', [RolesController::class, 'put']);
 Route::get('/roles/{id}', [RolesController::class, 'show']);
 Route::delete('/roles/{id}', [RolesController::class, 'destroy']);
-
-
-
-
-

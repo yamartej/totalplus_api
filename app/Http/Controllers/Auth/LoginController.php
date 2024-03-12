@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Response;
+use Illuminate\Auth\Events\Verified;
 
 
 
@@ -52,25 +53,33 @@ class LoginController extends Controller
             'email' => 'required|email',
             'password' => 'required',
         ]);
-        
+
         $credentials = $request->only('email', 'password');
 
         if (Auth::guard('web')->attempt($credentials)) {
-            // Autenticación exitosa, generar token de autenticación con Sanctum
             $user = Auth::guard('web')->user();
+            //Este metodo es el que ejecuta la verificación del usuario.
+            //$user->markEmailAsVerified();
+            if (!$user->hasVerifiedEmail()) {
+                throw ValidationException::withMessages([
+                    'email' => ['Tu correo electrónico no ha sido verificado. Por favor, verifica tu correo electrónico e intenta nuevamente.'],
+                ]);
+            }
+
+            // Autenticación exitosa, generar token de autenticación con Sanctum
+            $roles = $user->roles()->get();
             $token = $user->createToken('my-token-name')->plainTextToken;
             $expiration = now()->addMinutes(config('sanctum.expiration'));
             return response()->json([
                 'token' => $token,
                 'user' => $user,
                 'expiration' => $expiration,
+                'roles' => $roles,
             ]);
-            
-            
         }
 
         throw ValidationException::withMessages([
-            'email' => ['The provided credentials are incorrect.'],
+            'email' => ['Las credenciales proporcionadas son incorrectas.'],
         ]);
     }
 
@@ -80,5 +89,4 @@ class LoginController extends Controller
 
         return response()->json(['message' => 'Logged out']);
     }
-        
 }

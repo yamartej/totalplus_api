@@ -1,19 +1,34 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Auth\VerificationController;
+use App\Http\Controllers\CashRegisterController;
+use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CustomerController;
-use App\Http\Controllers\SaleController;
-use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\MenuController;
+use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseOrderProductController;
-use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\RolesController;
+use App\Http\Controllers\SaleController;
+use App\Http\Controllers\SalesReportController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\TokenVerificationController;
+use App\Http\Controllers\UserController;
+
 use App\Http\Controllers\WarehouseController;
-use App\Http\Controllers\CashRegisterController;
 use App\Models\Sale;
 use App\Models\Supplier;
+use Illuminate\Auth\Events\Verified;
+use Illuminate\Foundation\Auth\EmailVerificationRequest;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
+
+
+
 
 /*
 |--------------------------------------------------------------------------
@@ -26,22 +41,85 @@ use App\Models\Supplier;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
-});
-// Rutas para productos
-Route::get('/products', [ProductController::class, 'index']);
-Route::post('/products', [ProductController::class, 'create']);
-Route::get('/products/{id}', [ProductController::class, 'get']);
-Route::put('/products/{id}', [ProductController::class, 'update']);
-Route::delete('/products/{id}', [ProductController::class, 'delete']);
+// Ruta de login
+Route::post('/login', [LoginController::class, 'login']);
 
-// Rutas para inventario
-Route::get('/inventory', [InventoryController::class, 'index']);
-Route::post('/inventory', [InventoryController::class, 'create']);
-Route::get('/inventory/{id}', [InventoryController::class, 'get']);
-Route::put('/inventory/{id}', [InventoryController::class, 'update']);
-Route::delete('/inventory/{id}', [InventoryController::class, 'delete']);
+// Ruta de registro de usuario
+Route::post('/register', [RegisterController::class, 'register']);
+
+Route::middleware('auth:sanctum',)->group(function () {
+    // Rutas protegidas aquí
+
+    // Ruta de users
+    Route::get('/users', [UserController::class, 'index']);
+    Route::post('/users', [UserController::class, 'store']);
+    Route::get('/users/{id}', [UserController::class, 'show']);
+    Route::put('/users/{id}', [UserController::class, 'update']);
+    Route::delete('/users/{id}', [UserController::class, 'destroy']);
+
+    // Ruta de logout
+    Route::post('/logout', [LoginController::class, 'logout']);
+    Route::get('/verify-token', [VerificationController::class, 'verifyToken']);
+    Route::get('/refresh-token', [VerificationController::class, 'refreshToken']);
+
+
+
+    // Rutas para productos
+    Route::get('/products', [ProductController::class, 'index']);
+    Route::post('/products', [ProductController::class, 'create']);
+    Route::get('/products/{id}', [ProductController::class, 'get']);
+    Route::put('/products/{id}', [ProductController::class, 'update']);
+    Route::delete('/products/{id}', [ProductController::class, 'delete']);
+
+    // Rutas para inventario
+    Route::get('/inventory', [InventoryController::class, 'index']);
+    Route::post('/inventory', [InventoryController::class, 'create']);
+    Route::get('/inventory/{id}', [InventoryController::class, 'get']);
+    Route::put('/inventory/{id}', [InventoryController::class, 'update']);
+    Route::delete('/inventory/{id}', [InventoryController::class, 'delete']);
+
+    // Rutas Menu
+    Route::get('/menus', [MenuController::class, 'index']);
+
+
+    // Agrega las demás rutas protegidas aquí
+});
+Route::get('/email/verify/{id}/{hash}', function (Request $request, $id, $hash) {
+    $user = \App\Models\User::findOrFail($id);
+
+    if ($user->hasVerifiedEmail()) {
+        return redirect(env('FRONT_URL')); // Redirige a la URL de redirección definida en .env
+    }
+
+    if ($user->markEmailAsVerified()) {
+        event(new Verified($user)); // Dispara el evento Verified
+    }
+
+    return redirect(env('FRONT_URL'))->with('verified', true); // Redirige a la URL de redirección con un mensaje de correo electrónico verificado
+})->middleware('signed')->name('verification.verify');
+
+/*Route::get('/email/verify', function () {
+    return view('auth.verify-email');
+})->middleware('auth')->name('verification.notice');*/
+
+/*Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
+    $request->fulfill();
+
+    return redirect('/home');
+})->middleware(['auth', 'signed'])->name('verification.verify');*/
+
+/*Route::post('/email/verification-notification', function (Request $request) {
+    $request->user()->sendEmailVerificationNotification();
+
+    return back()->with('message', 'Verification link sent!');
+})->middleware(['auth', 'throttle:6,1'])->name('verification.send');*/
+
+// Rutas para Agregar Categorias de los productos
+Route::get('/categories', [CategoryController::class, 'index']);
+Route::post('/categories', [CategoryController::class, 'store']);
+Route::put('/categories/{id}', [CategoryController::class, 'put']);
+Route::get('/categories/{id}', [CategoryController::class, 'show']);
+Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
 
 // Rutas para cliente
 Route::get('/customers', [CustomerController::class, 'index']);
@@ -83,12 +161,7 @@ Route::put('/purchaseorderproducts/{id}', [PurchaseOrderProductController::class
 Route::get('/purchaseorderproducts/{id}', [PurchaseOrderProductController::class, 'show']);
 Route::delete('/purchaseorderproducts/{id}', [PurchaseOrderProductController::class, 'destroy']);
 
-// Rutas para Agregar Categorias de los productos
-Route::get('/categories', [CategoryController::class, 'index']);
-Route::post('/categories', [CategoryController::class, 'store']);
-Route::put('/categories/{id}', [CategoryController::class, 'put']);
-Route::get('/categories/{id}', [CategoryController::class, 'show']);
-Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
+
 
 // Rutas para Agregar Almacenes de los productos
 Route::get('/warehouses', [WarehouseController::class, 'index']);
@@ -103,3 +176,10 @@ Route::post('/cashregisters', [CashRegisterController::class, 'store']);
 Route::put('/cashregisters/{id}', [CashRegisterController::class, 'put']);
 Route::get('/cashregisters/{id}', [CashRegisterController::class, 'show']);
 Route::delete('/cashregisters/{id}', [CashRegisterController::class, 'destroy']);
+
+// Rutas para Roles
+Route::get('/roles', [RolesController::class, 'index']);
+Route::post('/roles', [RolesController::class, 'store']);
+Route::put('/roles/{id}', [RolesController::class, 'put']);
+Route::get('/roles/{id}', [RolesController::class, 'show']);
+Route::delete('/roles/{id}', [RolesController::class, 'destroy']);

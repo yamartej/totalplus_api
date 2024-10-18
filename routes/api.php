@@ -1,26 +1,34 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\InventoryController;
-use App\Http\Controllers\CustomerController;
-use App\Http\Controllers\SaleController;
-use App\Http\Controllers\SupplierController;
-use App\Http\Controllers\PurchaseOrderController;
-use App\Http\Controllers\PurchaseOrderProductController;
-use App\Http\Controllers\CategoryController;
-use App\Http\Controllers\WarehouseController;
-use App\Http\Controllers\CashRegisterController;
-use App\Http\Controllers\RolesController;
-use App\Http\Controllers\Auth\VerificationController;
-use App\Models\Sale;
-use App\Models\Supplier;
-use Illuminate\Support\Facades\Auth;
-
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Auth\VerificationController;
+use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\CashRegisterController;
+use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\MenuController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\PurchaseOrderProductController;
+use App\Http\Controllers\RolesController;
+use App\Http\Controllers\SaleController;
+use App\Http\Controllers\SalesReportController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TokenVerificationController;
+
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\WarehouseController;
+use App\Models\Sale;
+use App\Models\Supplier;
+use Illuminate\Auth\Events\Verified;
+use Illuminate\Foundation\Auth\EmailVerificationRequest;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
+
+
 
 
 
@@ -34,14 +42,26 @@ use App\Http\Controllers\TokenVerificationController;
 | is assigned the "api" middleware group. Enjoy building your API!
 |
 */
+
 // Ruta de login
 Route::post('/login', [LoginController::class, 'login']);
 
 // Ruta de registro de usuario
 Route::post('/register', [RegisterController::class, 'register']);
 
-Route::middleware('auth:sanctum')->group(function () {
+// Ruta de verificación de correo
+Route::post('/check-email', [AuthController::class, 'checkEmail']);
+
+Route::middleware('auth:sanctum',)->group(function () {
     // Rutas protegidas aquí
+
+    // Ruta de users
+    Route::get('/users', [UserController::class, 'index']);
+    Route::post('/users', [UserController::class, 'store']);
+    Route::get('/users/{id}', [UserController::class, 'show']);
+    Route::put('/users/{id}', [UserController::class, 'update']);
+    Route::delete('/users/{id}', [UserController::class, 'destroy']);
+
     // Ruta de logout
     Route::post('/logout', [LoginController::class, 'logout']);
     Route::get('/verify-token', [VerificationController::class, 'verifyToken']);
@@ -63,15 +83,61 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/inventory/{id}', [InventoryController::class, 'update']);
     Route::delete('/inventory/{id}', [InventoryController::class, 'delete']);
 
-    // Rutas para Agregar Categorias de los productos
-    Route::get('/categories', [CategoryController::class, 'index']);
-    Route::post('/categories', [CategoryController::class, 'store']);
-    Route::put('/categories/{id}', [CategoryController::class, 'put']);
-    Route::get('/categories/{id}', [CategoryController::class, 'show']);
-    Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
+    // Rutas Menu
+    Route::get('/menus', [MenuController::class, 'index']);
+
 
     // Agrega las demás rutas protegidas aquí
 });
+Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
+    $request->fulfill();
+
+    return response()->json(['message' => 'Email verified successfully.']);
+})->middleware(['auth', 'signed'])->name('verification.verify');
+
+Route::post('/email/verification-notification', function (Request $request) {
+    $request->user()->sendEmailVerificationNotification();
+
+    return response()->json(['message' => 'Verification link sent!']);
+})->middleware(['auth', 'throttle:6,1'])->name('verification.send');
+
+
+/*Route::get('/email/verify/{id}/{hash}', function (Request $request, $id, $hash) {
+    $user = \App\Models\User::findOrFail($id);
+
+    if ($user->hasVerifiedEmail()) {
+        return redirect(env('FRONT_URL')); // Redirige a la URL de redirección definida en .env
+    }
+
+    if ($user->markEmailAsVerified()) {
+        event(new Verified($user)); // Dispara el evento Verified
+    }
+
+    return redirect(env('FRONT_URL'))->with('verified', true); // Redirige a la URL de redirección con un mensaje de correo electrónico verificado
+})->middleware('signed')->name('verification.verify');*/
+
+/*Route::get('/email/verify', function () {
+    return view('auth.verify-email');
+})->middleware('auth')->name('verification.notice');*/
+
+/*Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
+    $request->fulfill();
+
+    return redirect('/home');
+})->middleware(['auth', 'signed'])->name('verification.verify');*/
+
+/*Route::post('/email/verification-notification', function (Request $request) {
+    $request->user()->sendEmailVerificationNotification();
+
+    return back()->with('message', 'Verification link sent!');
+})->middleware(['auth', 'throttle:6,1'])->name('verification.send');*/
+
+// Rutas para Agregar Categorias de los productos
+Route::get('/categories', [CategoryController::class, 'index']);
+Route::post('/categories', [CategoryController::class, 'store']);
+Route::put('/categories/{id}', [CategoryController::class, 'put']);
+Route::get('/categories/{id}', [CategoryController::class, 'show']);
+Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
 
 // Rutas para cliente
 Route::get('/customers', [CustomerController::class, 'index']);

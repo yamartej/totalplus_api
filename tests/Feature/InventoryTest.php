@@ -6,10 +6,8 @@ namespace Tests\Feature;
 namespace Tests\Unit;
 
 use Tests\TestCase;
-use App\Models\Product;
 use App\Models\User;
 use App\Models\Inventory;
-use Database\Factories\InventoryFactory;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 class InventoryTest extends TestCase

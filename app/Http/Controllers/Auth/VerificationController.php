@@ -10,6 +10,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Response;
 
+
+
 class VerificationController extends Controller
 {
     /*
@@ -22,7 +24,7 @@ class VerificationController extends Controller
     | be re-sent if the user didn't receive the original email message.
     |
     */
-    
+
 
     use VerifiesEmails;
 
@@ -82,6 +84,4 @@ class VerificationController extends Controller
             'expiration' => $expiration,
         ]);
     }
-
-    
 }

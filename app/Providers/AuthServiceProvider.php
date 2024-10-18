@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Notifications\CustomVerifyEmail;
+use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Gate;
 
@@ -23,8 +25,12 @@ class AuthServiceProvider extends ServiceProvider
      */
     public function boot()
     {
-        $this->registerPolicies();
+        //$this->registerPolicies();
 
         //
+        $this->app->singleton(
+            \Illuminate\Auth\Notifications\VerifyEmail::class,
+            \App\Notifications\CustomVerifyEmail::class
+        );
     }
 }

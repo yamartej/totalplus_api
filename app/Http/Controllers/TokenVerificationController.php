@@ -38,11 +38,12 @@ class TokenVerificationController extends Controller
         // Genera un nuevo token para el usuario y configura su expiración
         $token = $user->createToken('my-token-name')->plainTextToken;
         $expiration = now()->addMinutes(config('sanctum.expiration'));
-
+        $roles = $user->roles()->get();
         return response()->json([
             'token' => $token,
             'user' => $user,
             'expiration' => $expiration,
+            'roles' => $roles,
         ]);
     }
 }

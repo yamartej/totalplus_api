@@ -15,14 +15,14 @@ class ProductController extends Controller
 
     public function create(Request $request)
     {
-        
+        //die("HOla Mundo");
         // Validar los datos recibidos del producto
         $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'category_id' => 'required|exists:categories,id',
         ]);
-       
+
         // Crear el nuevo producto
         $product = Product::create([
             'name' => $request->input('name'),

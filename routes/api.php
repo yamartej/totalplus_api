@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\VerificationController;
+use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\CashRegisterController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CustomerController;
@@ -16,8 +17,8 @@ use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TokenVerificationController;
-use App\Http\Controllers\UserController;
 
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
 use App\Models\Sale;
 use App\Models\Supplier;
@@ -26,6 +27,7 @@ use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+
 
 
 
@@ -46,6 +48,9 @@ Route::post('/login', [LoginController::class, 'login']);
 
 // Ruta de registro de usuario
 Route::post('/register', [RegisterController::class, 'register']);
+
+// Ruta de verificación de correo
+Route::post('/check-email', [AuthController::class, 'checkEmail']);
 
 Route::middleware('auth:sanctum',)->group(function () {
     // Rutas protegidas aquí
@@ -84,7 +89,20 @@ Route::middleware('auth:sanctum',)->group(function () {
 
     // Agrega las demás rutas protegidas aquí
 });
-Route::get('/email/verify/{id}/{hash}', function (Request $request, $id, $hash) {
+Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
+    $request->fulfill();
+
+    return response()->json(['message' => 'Email verified successfully.']);
+})->middleware(['auth', 'signed'])->name('verification.verify');
+
+Route::post('/email/verification-notification', function (Request $request) {
+    $request->user()->sendEmailVerificationNotification();
+
+    return response()->json(['message' => 'Verification link sent!']);
+})->middleware(['auth', 'throttle:6,1'])->name('verification.send');
+
+
+/*Route::get('/email/verify/{id}/{hash}', function (Request $request, $id, $hash) {
     $user = \App\Models\User::findOrFail($id);
 
     if ($user->hasVerifiedEmail()) {
@@ -96,7 +114,7 @@ Route::get('/email/verify/{id}/{hash}', function (Request $request, $id, $hash) 
     }
 
     return redirect(env('FRONT_URL'))->with('verified', true); // Redirige a la URL de redirección con un mensaje de correo electrónico verificado
-})->middleware('signed')->name('verification.verify');
+})->middleware('signed')->name('verification.verify');*/
 
 /*Route::get('/email/verify', function () {
     return view('auth.verify-email');

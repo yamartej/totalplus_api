@@ -44,7 +44,7 @@ class UserTest extends TestCase
         $data = [
             'name' => $this->faker->name(),
             'email' => $this->faker->unique()->safeEmail(),
-            'password' => 'password', // Include password if required
+            'password' => '123456789', // Include password if required
         ];
 
         $response = $this->withHeaders([

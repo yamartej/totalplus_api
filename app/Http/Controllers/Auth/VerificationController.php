@@ -63,7 +63,6 @@ class VerificationController extends Controller
         // Aquí verificas si el usuario tiene un token de renovación válido
         $user = Auth::user();
 
-
         if ($user) {
             // Llama a la función para generar un nuevo token
             return $this->generateToken($user);

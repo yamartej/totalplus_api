@@ -86,7 +86,12 @@ Route::middleware('auth:sanctum',)->group(function () {
     // Rutas Menu
     Route::get('/menus', [MenuController::class, 'index']);
 
-
+    // Rutas para Roles
+    Route::get('/roles', [RolesController::class, 'index']);
+    Route::post('/roles', [RolesController::class, 'store']);
+    Route::put('/roles/{id}', [RolesController::class, 'put']);
+    Route::get('/roles/{id}', [RolesController::class, 'show']);
+    Route::delete('/roles/{id}', [RolesController::class, 'destroy']);
     // Agrega las demás rutas protegidas aquí
 });
 Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
@@ -194,10 +199,3 @@ Route::post('/cashregisters', [CashRegisterController::class, 'store']);
 Route::put('/cashregisters/{id}', [CashRegisterController::class, 'put']);
 Route::get('/cashregisters/{id}', [CashRegisterController::class, 'show']);
 Route::delete('/cashregisters/{id}', [CashRegisterController::class, 'destroy']);
-
-// Rutas para Roles
-Route::get('/roles', [RolesController::class, 'index']);
-Route::post('/roles', [RolesController::class, 'store']);
-Route::put('/roles/{id}', [RolesController::class, 'put']);
-Route::get('/roles/{id}', [RolesController::class, 'show']);
-Route::delete('/roles/{id}', [RolesController::class, 'destroy']);

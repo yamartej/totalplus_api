@@ -16,6 +16,7 @@ use App\Http\Controllers\RolesController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\TokenVerificationController;
 
 use App\Http\Controllers\UserController;
@@ -92,6 +93,10 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::put('/roles/{id}', [RolesController::class, 'put']);
     Route::get('/roles/{id}', [RolesController::class, 'show']);
     Route::delete('/roles/{id}', [RolesController::class, 'destroy']);
+
+    // Rutas para Persimos de roles
+    Route::get('/permissions', [RolePermissionController::class, 'index']);
+    Route::post('/permissions', [RolePermissionController::class, 'update']);
     // Agrega las demás rutas protegidas aquí
 });
 Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {

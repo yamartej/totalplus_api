@@ -86,6 +86,7 @@ Route::middleware('auth:sanctum',)->group(function () {
 
     // Rutas Menu
     Route::get('/menus', [MenuController::class, 'index']);
+    Route::post('/menu_items', [MenuController::class, 'getMenuByRoles']);
 
     // Rutas para Roles
     Route::get('/roles', [RolesController::class, 'index']);

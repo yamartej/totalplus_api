@@ -90,4 +90,25 @@ class LoginController extends Controller
 
         return response()->json(['message' => 'Logged out']);
     }
+
+    public function loginWithProvider(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email'
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        // Generar token de autenticación con Sanctum
+        $roles = $user->roles()->get();
+        $token = $user->createToken('my-token-name')->plainTextToken;
+        $expiration = now()->addMinutes(config('sanctum.expiration'));
+
+        return response()->json([
+            'token' => $token,
+            'user' => $user,
+            'expiration' => $expiration,
+            'roles' => $roles,
+        ]);
+    }
 }

@@ -47,6 +47,9 @@ use Illuminate\Support\Facades\Route;
 // Ruta de login
 Route::post('/login', [LoginController::class, 'login']);
 
+// Ruta de login with provider
+Route::post('/login-provider', [LoginController::class, 'loginWithProvider']);
+
 // Ruta de registro de usuario
 Route::post('/register', [RegisterController::class, 'register']);
 

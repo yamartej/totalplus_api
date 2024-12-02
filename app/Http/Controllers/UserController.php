@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use App\Models\Company;
 
 
 class UserController extends Controller
@@ -32,11 +34,16 @@ class UserController extends Controller
             'email' => 'required|email'
         ]);
 
+        // Buscar o crear la empresa
+        $company = Company::create(['name' => $request->input('company')]);
+
         $user = User::create([
             'name' => $request->input('name'),
             'email' => $request->input('email'),
-            'password' => '123456789'
+            'password' => Hash::make($request->input('password')),
         ]);
+
+        $user->roles()->attach($request->input('rol'));
 
         return response()->json($user, 201);
     }

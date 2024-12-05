@@ -35,12 +35,19 @@ class UserController extends Controller
         ]);
 
         // Buscar o crear la empresa
-        $company = Company::create(['name' => $request->input('company')]);
+        if ($request->input('company')) {
+            $company = Company::create(['name' => $request->input('company')]);
+            $company_id = $company->id;
+        } else {
+            $company_id = $request->input('companyName');
+        }
+
 
         $user = User::create([
             'name' => $request->input('name'),
             'email' => $request->input('email'),
             'password' => Hash::make($request->input('password')),
+            'company_id' => $company_id,
         ]);
 
         $user->roles()->attach($request->input('rol'));
@@ -84,9 +91,22 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
         ]);
 
+        // Buscar o crear la empresa
+        if ($request->input('company')) {
+            $company = Company::create(['name' => $request->input('company')]);
+            $company_id = $company->id;
+        } else {
+            $company_id = $request->input('companyName');
+        }
+
         $user->update([
             'name' => $request->input('name'),
+            'company_id' => $company_id,
+            'email' => $request->input('email'),
+            'rol_id' => $request->input('rol')
         ]);
+
+        $user->roles()->sync($request->input('rol'));
 
         // Responder con el inventario actualizado y el código de estado 200 (OK)
         return response()->json($user, 200);

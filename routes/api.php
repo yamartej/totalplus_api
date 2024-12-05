@@ -17,6 +17,7 @@ use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\RolePermissionController;
+use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\TokenVerificationController;
 
 use App\Http\Controllers\UserController;
@@ -71,8 +72,6 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::get('/verify-token', [VerificationController::class, 'verifyToken']);
     Route::get('/refresh-token', [VerificationController::class, 'refreshToken']);
 
-
-
     // Rutas para productos
     Route::get('/products', [ProductController::class, 'index']);
     Route::post('/products', [ProductController::class, 'create']);
@@ -101,6 +100,10 @@ Route::middleware('auth:sanctum',)->group(function () {
     // Rutas para Persimos de roles
     Route::get('/permissions', [RolePermissionController::class, 'index']);
     Route::post('/permissions', [RolePermissionController::class, 'update']);
+
+    // Rutas para Roles
+    Route::get('/companies', [CompanyController::class, 'index']);
+
     // Agrega las demás rutas protegidas aquí
 });
 Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {

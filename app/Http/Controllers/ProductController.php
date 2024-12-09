@@ -4,12 +4,13 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Product;
+use App\Models\Inventory;
 
 class ProductController extends Controller
 {
     public function index()
     {
-        $products = Product::with('category')->get();
+        $products = Product::with('category', 'inventory')->get();
         return response()->json($products);
     }
 
@@ -30,9 +31,14 @@ class ProductController extends Controller
             'image' => $request->input('image'),
             'category_id' => $request->input('category_id'),
         ]);
+        $inventory = Inventory::create(['product_id' => $product->id, 'quantity' => $request->input('quantity')]);
 
         // Responder con el producto creado y el código de estado 201 (Recurso creado)
-        return response()->json($product, 201);
+        //return response()->json($product, $inventory, 201);
+        return response()->json([
+            'product' => $product,
+            'inventory' => $inventory,
+        ]);
     }
 
     public function get($id)
@@ -74,6 +80,20 @@ class ProductController extends Controller
             'image' => $request->input('image'),
             'category_id' => $request->input('category_id'),
         ]);
+
+        // Actualizar el inventario asociado al producto
+        $inventory = Inventory::where('product_id', $id)->first();
+        if ($inventory) {
+            $inventory->update([
+                'quantity' => $request->input('quantity'),
+            ]);
+        } else {
+            // Si no existe un inventario asociado, crear uno nuevo
+            Inventory::create([
+                'product_id' => $id,
+                'quantity' => $request->input('quantity'),
+            ]);
+        }
 
         // Responder con el producto actualizado y el código de estado 200 (OK)
         return response()->json($product, 200);

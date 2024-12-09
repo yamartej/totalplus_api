@@ -104,6 +104,13 @@ Route::middleware('auth:sanctum',)->group(function () {
     // Rutas para Roles
     Route::get('/companies', [CompanyController::class, 'index']);
 
+    // Rutas para Agregar Categorias de los productos
+    Route::get('/categories', [CategoryController::class, 'index']);
+    Route::post('/categories', [CategoryController::class, 'store']);
+    Route::put('/categories/{id}', [CategoryController::class, 'put']);
+    Route::get('/categories/{id}', [CategoryController::class, 'show']);
+    Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
+
     // Agrega las demás rutas protegidas aquí
 });
 Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
@@ -149,12 +156,7 @@ Route::post('/email/verification-notification', function (Request $request) {
     return back()->with('message', 'Verification link sent!');
 })->middleware(['auth', 'throttle:6,1'])->name('verification.send');*/
 
-// Rutas para Agregar Categorias de los productos
-Route::get('/categories', [CategoryController::class, 'index']);
-Route::post('/categories', [CategoryController::class, 'store']);
-Route::put('/categories/{id}', [CategoryController::class, 'put']);
-Route::get('/categories/{id}', [CategoryController::class, 'show']);
-Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
+
 
 // Rutas para cliente
 Route::get('/customers', [CustomerController::class, 'index']);

@@ -9,13 +9,12 @@ class ProductController extends Controller
 {
     public function index()
     {
-        $products = Product::all();
+        $products = Product::with('category')->get();
         return response()->json($products);
     }
 
     public function create(Request $request)
     {
-        //die("HOla Mundo");
         // Validar los datos recibidos del producto
         $request->validate([
             'name' => 'required|string|max:255',

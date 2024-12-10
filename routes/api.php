@@ -111,6 +111,13 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::get('/categories/{id}', [CategoryController::class, 'show']);
     Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
 
+    // Rutas para cliente
+    Route::get('/customers', [CustomerController::class, 'index']);
+    Route::post('/customers', [CustomerController::class, 'store']);
+    Route::get('/customers/{id}', [CustomerController::class, 'show']);
+    Route::put('/customers/{id}', [CustomerController::class, 'update']);
+    Route::delete('/customers/{id}', [CustomerController::class, 'delete']);
+
     // Agrega las demás rutas protegidas aquí
 });
 Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
@@ -155,15 +162,6 @@ Route::post('/email/verification-notification', function (Request $request) {
 
     return back()->with('message', 'Verification link sent!');
 })->middleware(['auth', 'throttle:6,1'])->name('verification.send');*/
-
-
-
-// Rutas para cliente
-Route::get('/customers', [CustomerController::class, 'index']);
-Route::post('/customers', [CustomerController::class, 'store']);
-Route::get('/customers/{id}', [CustomerController::class, 'show']);
-Route::put('/customers/{id}', [CustomerController::class, 'update']);
-Route::delete('/customers/{id}', [CustomerController::class, 'delete']);
 
 // Rutas para Venta
 Route::get('/sales', [SaleController::class, 'index']);

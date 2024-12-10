@@ -37,7 +37,7 @@ class CustomerController extends Controller
         $customer = Customer::create([
             'name' => $request->input('name'),
             'address' => $request->input('address'),
-            'phone' => $request->input('phone'),            
+            'phone' => $request->input('phone'),
         ]);
 
         // Responder con el cliente creado y el código de estado 201 (Recurso creado)
@@ -89,10 +89,10 @@ class CustomerController extends Controller
         ]);
 
         // Actualizar los datos del cliente
-        $customer = Customer::create([
+        $customer->update([
             'name' => $request->input('name'),
             'address' => $request->input('address'),
-            'phone' => $request->input('phone'),            
+            'phone' => $request->input('phone'),
         ]);
 
         // Responder con el cliente actualizado y el código de estado 200 (OK)
@@ -120,6 +120,5 @@ class CustomerController extends Controller
 
         // Responder con el código de estado 204 (Sin contenido) ya que no hay respuesta para eliminar
         return response()->json(null, 204);
-        
     }
 }

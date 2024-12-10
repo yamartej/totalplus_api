@@ -118,6 +118,13 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::put('/customers/{id}', [CustomerController::class, 'update']);
     Route::delete('/customers/{id}', [CustomerController::class, 'delete']);
 
+    // Rutas para Agregar Almacenes de los productos
+    Route::get('/warehouses', [WarehouseController::class, 'index']);
+    Route::post('/warehouses', [WarehouseController::class, 'store']);
+    Route::put('/warehouses/{id}', [WarehouseController::class, 'put']);
+    Route::get('/warehouses/{id}', [WarehouseController::class, 'show']);
+    Route::delete('/warehouses/{id}', [WarehouseController::class, 'destroy']);
+
     // Agrega las demás rutas protegidas aquí
 });
 Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
@@ -195,15 +202,6 @@ Route::post('/purchaseorderproducts', [PurchaseOrderProductController::class, 's
 Route::put('/purchaseorderproducts/{id}', [PurchaseOrderProductController::class, 'put']);
 Route::get('/purchaseorderproducts/{id}', [PurchaseOrderProductController::class, 'show']);
 Route::delete('/purchaseorderproducts/{id}', [PurchaseOrderProductController::class, 'destroy']);
-
-
-
-// Rutas para Agregar Almacenes de los productos
-Route::get('/warehouses', [WarehouseController::class, 'index']);
-Route::post('/warehouses', [WarehouseController::class, 'store']);
-Route::put('/warehouses/{id}', [WarehouseController::class, 'put']);
-Route::get('/warehouses/{id}', [WarehouseController::class, 'show']);
-Route::delete('/warehouses/{id}', [WarehouseController::class, 'destroy']);
 
 // Rutas para Agregar Cajas registradoras de los productos
 Route::get('/cashregisters', [CashRegisterController::class, 'index']);

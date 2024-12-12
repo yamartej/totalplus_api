@@ -12,7 +12,7 @@ class InventoryController extends Controller
 {
     public function index()
     {
-        $inventories = Inventory::all();
+        $inventories = Inventory::with('product')->get();
         return response()->json($inventories);
     }
 

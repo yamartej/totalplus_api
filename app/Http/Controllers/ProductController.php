@@ -10,7 +10,7 @@ class ProductController extends Controller
 {
     public function index()
     {
-        $products = Product::with('category', 'inventory')->get();
+        $products = Product::with('category')->get();
         return response()->json($products);
     }
 
@@ -30,6 +30,7 @@ class ProductController extends Controller
             'price' => $request->input('price'),
             'image' => $request->input('image'),
             'category_id' => $request->input('category_id'),
+            'quantity' => $request->input('quantity'),
         ]);
 
         return response()->json([
@@ -75,6 +76,7 @@ class ProductController extends Controller
             'price' => $request->input('price'),
             'image' => $request->input('image'),
             'category_id' => $request->input('category_id'),
+            'quantity' => $request->input('quantity'),
         ]);
 
         // Responder con el producto actualizado y el código de estado 200 (OK)

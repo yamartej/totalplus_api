@@ -99,4 +99,10 @@ class ProductController extends Controller
         // Responder con el código de estado 204 (Sin contenido) ya que no hay respuesta para eliminar
         return response()->json(null, 204);
     }
+
+    public function getAvailableProducts()
+    {
+        $products = Product::where('quantity', '>', 0)->get();
+        return response()->json($products, 200);
+    }
 }

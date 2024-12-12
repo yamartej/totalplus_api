@@ -73,6 +73,7 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::get('/refresh-token', [VerificationController::class, 'refreshToken']);
 
     // Rutas para productos
+    Route::get('/products/available', [ProductController::class, 'getAvailableProducts']);
     Route::get('/products', [ProductController::class, 'index']);
     Route::post('/products', [ProductController::class, 'create']);
     Route::get('/products/{id}', [ProductController::class, 'get']);

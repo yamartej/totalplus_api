@@ -15,13 +15,16 @@ class Warehouse extends Model
 
     public function products()
     {
-        return $this->belongsToMany(Product::class, 'product_warehouse')
-                    ->withPivot('quantity')
-                    ->withTimestamps();
+        return $this->belongsToMany(Product::class)->withPivot('quantity')->withTimestamps();
     }
 
     public function cashRegisters()
     {
         return $this->hasMany(CashRegister::class);
+    }
+
+    public function inventories()
+    {
+        return $this->hasMany(Inventory::class);
     }
 }

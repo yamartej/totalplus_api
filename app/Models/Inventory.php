@@ -11,10 +11,15 @@ class Inventory extends Model
 
     protected $table = 'inventories';
 
-    protected $fillable = ['product_id', 'quantity'];
+    protected $fillable = ['product_id', 'quantity', 'warehouse_id'];
 
     public function product()
     {
-        return $this->belongsTo(Product::class); // Establece la relación con el modelo Product
+        return $this->belongsTo(Product::class);
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class);
     }
 }

@@ -1,18 +1,17 @@
 <?php
 
-// app/Http/Controllers/InventoryController.php
-
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Inventory;
 use App\Models\Product;
+use App\Models\Warehouse;
 
 class InventoryController extends Controller
 {
     public function index()
     {
-        $inventories = Inventory::with('product')->get();
+        $inventories = Inventory::with(['product', 'warehouse'])->get();
         return response()->json($inventories);
     }
 
@@ -22,22 +21,35 @@ class InventoryController extends Controller
         $request->validate([
             'product_id' => 'required|exists:products,id',
             'quantity' => 'required|integer|min:0',
+            'warehouse_id' => 'required|exists:warehouses,id',
         ]);
 
-        // Crear el nuevo inventario
-        $inventory = Inventory::create([
-            'product_id' => $request->input('product_id'),
-            'quantity' => $request->input('quantity'),
-        ]);
+        // Verificar si ya existe un inventario para el producto y el almacén especificados
+        $inventory = Inventory::where('product_id', $request->input('product_id'))
+            ->where('warehouse_id', $request->input('warehouse_id'))
+            ->first();
 
-        // Responder con el inventario creado y el código de estado 201 (Recurso creado)
-        return response()->json($inventory, 201);
+        if ($inventory) {
+            // Si ya existe, devolver un mensaje de error
+            return response()->json(['message' => 'Ya el almacén tiene este producto'], 400);
+        } else {
+            // Crear el nuevo inventario
+            $inventory = Inventory::create([
+                'product_id' => $request->input('product_id'),
+                'quantity' => $request->input('quantity'),
+                'warehouse_id' => $request->input('warehouse_id'),
+            ]);
+
+            // Responder con el inventario creado y el código de estado 201 (Recurso creado)
+            return response()->json($inventory, 201);
+        }
     }
+
 
     public function get($id)
     {
         // Buscar el producto por su ID en la base de datos
-        $inventory = Inventory::find($id);
+        $inventory = Inventory::with(['product', 'warehouse'])->find($id);
 
         // Si el producto no existe, responder con el código de estado 404 (No encontrado)
         if (!$inventory) {

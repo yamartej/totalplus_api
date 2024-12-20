@@ -103,6 +103,12 @@ class ProductController extends Controller
     public function getAvailableProducts()
     {
         $products = Product::where('quantity', '>', 0)->get();
+        foreach ($products as $product) {
+            $totalQuantity = Inventory::where('product_id', $product->id)->sum('quantity');
+            $currentStock = $product->quantity - $totalQuantity;
+            $product->quantity = $currentStock;
+        }
+
         return response()->json($products, 200);
     }
 }

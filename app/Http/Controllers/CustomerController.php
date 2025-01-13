@@ -31,10 +31,12 @@ class CustomerController extends Controller
             'name' => 'required|string|max:255',
             'address' => 'required|string|max:255',
             'phone' => 'required',
+            'client_id' => 'required',
         ]);
 
         // Crear el nuevo cliente
         $customer = Customer::create([
+            'client_id' => $request->input('client_id'),
             'name' => $request->input('name'),
             'address' => $request->input('address'),
             'phone' => $request->input('phone'),
@@ -53,11 +55,12 @@ class CustomerController extends Controller
     public function show($id)
     {
         // Buscar el cliente por su ID en la base de datos
-        $customer = Customer::find($id);
+        //$customer = Customer::find($id);
+        $customer = Customer::where('client_id', $id)->get();
 
         // Si el cliente no existe, responder con el código de estado 404 (No encontrado)
         if (!$customer) {
-            return response()->json(['message' => 'Producto no encontrado'], 404);
+            return response()->json(['message' => 'Cliente no encontrado'], 404);
         }
 
         // Responder con el cliente y el código de estado 200 (OK)
@@ -86,10 +89,12 @@ class CustomerController extends Controller
             'name' => 'required|string|max:255',
             'address' => 'required|string|max:255',
             'phone' => 'required',
+            'client_id' => 'required',
         ]);
 
         // Actualizar los datos del cliente
         $customer->update([
+            'client_id' => $request->input('client_id'),
             'name' => $request->input('name'),
             'address' => $request->input('address'),
             'phone' => $request->input('phone'),
@@ -120,5 +125,25 @@ class CustomerController extends Controller
 
         // Responder con el código de estado 204 (Sin contenido) ya que no hay respuesta para eliminar
         return response()->json(null, 204);
+    }
+
+    /**
+     * Search customers by client_id.
+     *
+     * @param  int  $client_id
+     * @return \Illuminate\Http\Response
+     */
+    public function searchByClientId($client_id)
+    {
+        // Buscar clientes por client_id en la base de datos
+        $customers = Customer::where('client_id', $client_id)->get();
+
+        // Si no se encuentran clientes, responder con el código de estado 404 (No encontrado)
+        if ($customers->isEmpty()) {
+            return response()->json(['message' => 'Clientes no encontrados'], 404);
+        }
+
+        // Responder con los clientes encontrados y el código de estado 200 (OK)
+        return response()->json($customers, 200);
     }
 }

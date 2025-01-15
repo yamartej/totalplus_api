@@ -18,6 +18,7 @@ use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\CompanyController;
+use App\Http\Controllers\PointOfSaleController;
 use App\Http\Controllers\TokenVerificationController;
 
 use App\Http\Controllers\UserController;
@@ -125,6 +126,13 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::put('/warehouses/{id}', [WarehouseController::class, 'put']);
     Route::get('/warehouses/{id}', [WarehouseController::class, 'show']);
     Route::delete('/warehouses/{id}', [WarehouseController::class, 'destroy']);
+
+    // Rutas para Puntos de Ventas
+    Route::get('/pops', [PointOfSaleController::class, 'index']);
+    Route::post('/pops', [PointOfSaleController::class, 'store']);
+    Route::get('/pops/{id}', [PointOfSaleController::class, 'show']);
+    Route::put('/pops/{id}', [PointOfSaleController::class, 'update']);
+    Route::delete('/pops/{id}', [PointOfSaleController::class, 'destroy']);
 
     // Agrega las demás rutas protegidas aquí
 });

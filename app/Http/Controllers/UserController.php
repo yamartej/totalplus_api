@@ -55,6 +55,21 @@ class UserController extends Controller
         return response()->json($user, 201);
     }
 
+    public function getUsersByRole()
+    {
+        $roleIds = [8, 9, 10, 16]; // IDs de roles predefinidos
+
+        $users = User::whereHas('roles', function ($query) use ($roleIds) {
+            $query->whereIn('roles.id', $roleIds); // Asegúrate de usar la columna correcta
+        })->get();
+
+        if ($users->isEmpty()) {
+            return response()->json(['message' => 'Usuario no encontrado'], 404);
+        }
+
+        return response()->json($users, 200);
+    }
+
     /**
      * Display the specified resource.
      *

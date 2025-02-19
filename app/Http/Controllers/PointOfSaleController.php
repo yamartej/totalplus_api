@@ -31,6 +31,12 @@ class PointOfSaleController extends Controller
             'ubication' => 'required|string|max:255',
         ]);
 
+        //validar que el identificador no exista
+        $pop = PointOfSale::where('identifier', $request->input('identifier'))->first();
+        if ($pop) {
+            return response()->json(['message' => 'El identificador ya existe'], 400);
+        }
+
         $pop = PointOfSale::create([
             'identifier' => $request->input('identifier'),
             'ubication' => $request->input('ubication'),
@@ -79,6 +85,8 @@ class PointOfSaleController extends Controller
         $pop->update([
             'identifier' => $request->input('identifier'),
             'ubication' => $request->input('ubication'),
+            'status' => $request->input('status'),
+            'seller' => $request->input('seller'),
         ]);
 
         return response()->json($pop, 200);

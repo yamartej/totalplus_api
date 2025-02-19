@@ -19,6 +19,7 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\PointOfSaleController;
+use App\Http\Controllers\PointOfSaleStatusController;
 use App\Http\Controllers\TokenVerificationController;
 
 use App\Http\Controllers\UserController;
@@ -62,6 +63,7 @@ Route::middleware('auth:sanctum',)->group(function () {
     // Rutas protegidas aquí
 
     // Ruta de users
+    Route::get('/users/by-role', [UserController::class, 'getUsersByRole']);
     Route::get('/users', [UserController::class, 'index']);
     Route::post('/users', [UserController::class, 'store']);
     Route::get('/users/{id}', [UserController::class, 'show']);

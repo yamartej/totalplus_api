@@ -11,5 +11,5 @@ class PointOfSale extends Model
     use HasFactory;
 
     protected $table = 'point_of_sales';
-    protected $fillable = ['identifier', 'ubication', 'status', 'seller'];
+    protected $fillable = ['identifier', 'ubication', 'status', 'seller', 'seller_id'];
 }

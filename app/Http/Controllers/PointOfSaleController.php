@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\PointOfSale;
+use App\Models\User;
 
 class PointOfSaleController extends Controller
 {
@@ -82,11 +83,24 @@ class PointOfSaleController extends Controller
             'ubication' => 'required|string|max:255',
         ]);
 
+        if ($request->input('seller_id')) {
+            $user = User::find($request->input('seller_id'));
+            if (!$user) {
+                return response()->json(['message' => 'Vendedor no encontrado'], 404);
+            }
+            $seller = $user->name;
+            $seller_id = $request->input('seller_id');
+        } else {
+            $seller = null;
+            $seller_id = null;
+        }
+
         $pop->update([
             'identifier' => $request->input('identifier'),
             'ubication' => $request->input('ubication'),
             'status' => $request->input('status'),
-            'seller' => $request->input('seller'),
+            'seller_id' => $seller_id,
+            'seller' => $seller,
         ]);
 
         return response()->json($pop, 200);
@@ -109,5 +123,16 @@ class PointOfSaleController extends Controller
         $pop->delete();
 
         return response()->json(['message' => 'Punto de venta eliminado'], 200);
+    }
+
+    public function getBySellerId($id)
+    {
+        $pop = PointOfSale::where('seller', $id)->get();
+
+        if (!$pop) {
+            return response()->json(['message' => 'Punto de venta no encontrado'], 404);
+        }
+
+        return response()->json($pop, 200);
     }
 }

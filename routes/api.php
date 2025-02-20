@@ -130,6 +130,7 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::delete('/warehouses/{id}', [WarehouseController::class, 'destroy']);
 
     // Rutas para Puntos de Ventas
+    Route::get('/pops/seller/{seller_id}', [PointOfSaleController::class, 'getBySellerId']);
     Route::get('/pops', [PointOfSaleController::class, 'index']);
     Route::post('/pops', [PointOfSaleController::class, 'store']);
     Route::get('/pops/{id}', [PointOfSaleController::class, 'show']);

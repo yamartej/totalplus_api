@@ -137,6 +137,9 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::put('/pops/{id}', [PointOfSaleController::class, 'update']);
     Route::delete('/pops/{id}', [PointOfSaleController::class, 'destroy']);
 
+    // Rutas para Ventas
+    Route::get('sales', [SaleController::class, 'index']);
+    Route::post('sales', [SaleController::class, 'store']);
     // Agrega las demás rutas protegidas aquí
 });
 Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {

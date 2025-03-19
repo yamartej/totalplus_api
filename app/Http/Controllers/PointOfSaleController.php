@@ -127,7 +127,7 @@ class PointOfSaleController extends Controller
 
     public function getBySellerId($id)
     {
-        $pop = PointOfSale::where('seller', $id)->get();
+        $pop = PointOfSale::where('seller_id', $id)->get();
 
         if (!$pop) {
             return response()->json(['message' => 'Punto de venta no encontrado'], 404);

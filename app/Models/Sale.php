@@ -9,7 +9,12 @@ class Sale extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['customer_id', 'product_id', 'quantity'];
+    protected $fillable = [
+        'customer_id',
+        'seller_id',
+        'pop_id',
+        'total',
+    ];
 
     public function customer()
     {
@@ -20,5 +25,4 @@ class Sale extends Model
     {
         return $this->belongsTo(Product::class);
     }
-    
 }

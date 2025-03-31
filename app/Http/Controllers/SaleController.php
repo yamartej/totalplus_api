@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\SalesHistory;
 use App\Models\Inventory;
+use App\Models\SaleDestail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Response;
 
@@ -21,13 +22,14 @@ class SaleController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'client_id' => 'required|exists:customers,client_id',
+            'client_id' => 'required|exists:customers,id',
             'seller_id' => 'required|exists:users,id',
             'pop_id' => 'required|exists:point_of_sales,id',
             'total' => 'required|numeric',
             'carts' => 'required|array',
             'carts.*.productId' => 'required|exists:products,id',
             'carts.*.quantity' => 'required|integer|min:1',
+            'type_of_sale' => 'required|in:normal,credit',
         ]);
 
         DB::beginTransaction();
@@ -38,13 +40,14 @@ class SaleController extends Controller
                 'customer_id' => $request->input('client_id'),
                 'seller_id' => $request->input('seller_id'),
                 'pop_id' => $request->input('pop_id'),
-                'total' => $request->input('total'),
+                'total_amount' => $request->input('total'),
+                'type_of_sale' => $request->input('type_of_sale'),
             ]);
 
             // Crear el historial de ventas
             foreach ($request->input('carts') as $cart) {
-                SalesHistory::create([
-                    'sale_id' => $sale->id,
+                SaleDestail::create([
+                    'sales_id' => $sale->id,
                     'product_id' => $cart['productId'],
                     'quantity' => $cart['quantity'],
                 ]);
@@ -56,7 +59,6 @@ class SaleController extends Controller
                 $inventory->quantity -= $cart['quantity'];
                 $inventory->save();
             }
-
 
             DB::commit();
 

@@ -13,16 +13,20 @@ class Sale extends Model
         'customer_id',
         'seller_id',
         'pop_id',
-        'total',
+        'total_amount',
+        'type_of_sale',
     ];
 
     public function customer()
     {
         return $this->belongsTo(Customer::class);
     }
-
-    public function product()
+    public function seller()
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(User::class);
+    }
+    public function pop()
+    {
+        return $this->belongsTo(PointOfSale::class);
     }
 }

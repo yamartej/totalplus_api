@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use App\Models\Company;
+use Illuminate\Support\Facades\DB;
 
 
 class UserController extends Controller
@@ -140,10 +141,15 @@ class UserController extends Controller
             return response()->json(['message' => 'Usuario no encontrado'], 404);
         }
 
-        // Eliminar el producto de la base de datos
+        // Verificar si el usuario tiene dependencias en point_of_sales
+        $hasDependencies = \DB::table('point_of_sales')->where('seller_id', $id)->exists();
+        if ($hasDependencies) {
+            return response()->json(['message' => 'No se puede eliminar el usuario porque tiene dependencias en Punto de Ventas'], 400);
+        }
+
+        // Eliminar el usuario
         $user->delete();
 
-        // Responder con el código de estado 204 (Sin contenido) ya que no hay respuesta para eliminar
         return response()->json(null, 204);
     }
 }

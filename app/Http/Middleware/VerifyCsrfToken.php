@@ -34,5 +34,7 @@ class VerifyCsrfToken extends Middleware
         'api/pops-status/*',
         'api/sales',
         'api/sales/*',
+        'api/batches',
+        'api/batches/*',
     ];
 }

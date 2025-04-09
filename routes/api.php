@@ -21,6 +21,7 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\PointOfSaleController;
 use App\Http\Controllers\PointOfSaleStatusController;
 use App\Http\Controllers\TokenVerificationController;
+use App\Http\Controllers\BatchController;
 
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
@@ -140,6 +141,13 @@ Route::middleware('auth:sanctum',)->group(function () {
     // Rutas para Ventas
     Route::get('sales', [SaleController::class, 'index']);
     Route::post('sales', [SaleController::class, 'store']);
+
+    // Rutas para Lotes
+    Route::get('/batches', [BatchController::class, 'index']);
+    Route::post('/batches', [BatchController::class, 'store']);
+    Route::put('/batches/{id}', [BatchController::class, 'update']);
+    Route::get('/batches/{id}', [BatchController::class, 'show']);
+    Route::delete('/batches/{id}', [BatchController::class, 'destroy']);
     // Agrega las demás rutas protegidas aquí
 });
 Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {

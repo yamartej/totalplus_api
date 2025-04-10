@@ -16,4 +16,9 @@ class Batch extends Model
         'quantity',
         'order_creation_date',
     ];
+
+    public function products()
+    {
+        return $this->belongsToMany(Product::class)->withPivot('quantity')->withTimestamps();
+    }
 }

@@ -9,7 +9,15 @@ class Product extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'description', 'price', 'image', 'category_id', 'quantity'];
+    protected $fillable = [
+        'name',
+        'description',
+        'price',
+        'image',
+        'category_id',
+        'quantity',
+        'batch_id',
+    ];
 
     public function category()
     {
@@ -24,5 +32,10 @@ class Product extends Model
     public function warehouses()
     {
         return $this->belongsToMany(Warehouse::class)->withPivot('quantity')->withTimestamps();
+    }
+
+    public function batches()
+    {
+        return $this->belongsTo(Batch::class, 'batch_id');
     }
 }

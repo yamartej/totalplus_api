@@ -10,7 +10,7 @@ class ProductController extends Controller
 {
     public function index()
     {
-        $products = Product::with('category')->get();
+        $products = Product::with(['category', 'batches'])->get();
         return response()->json($products);
     }
 
@@ -21,6 +21,7 @@ class ProductController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'category_id' => 'required|exists:categories,id',
+            'batch_id' => 'required|exists:batches,id',
         ]);
 
         // Crear el nuevo producto
@@ -31,6 +32,7 @@ class ProductController extends Controller
             'image' => $request->input('image'),
             'category_id' => $request->input('category_id'),
             'quantity' => $request->input('quantity'),
+            'batch_id' => $request->input('batch_id'),
         ]);
 
         return response()->json([
@@ -67,6 +69,7 @@ class ProductController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'category_id' => 'required|exists:categories,id',
+            'batch_id' => 'required|exists:batches,id',
         ]);
 
         // Actualizar los datos del producto
@@ -77,6 +80,7 @@ class ProductController extends Controller
             'image' => $request->input('image'),
             'category_id' => $request->input('category_id'),
             'quantity' => $request->input('quantity'),
+            'batch_id' => $request->input('batch_id'),
         ]);
 
         // Responder con el producto actualizado y el código de estado 200 (OK)

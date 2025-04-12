@@ -21,4 +21,9 @@ class Batch extends Model
     {
         return $this->belongsToMany(Product::class)->withPivot('quantity')->withTimestamps();
     }
+
+    public function costs()
+    {
+        return $this->hasMany(Cost::class);
+    }
 }

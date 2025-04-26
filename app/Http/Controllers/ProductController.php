@@ -21,7 +21,6 @@ class ProductController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'category_id' => 'required|exists:categories,id',
-            'batch_id' => 'required|exists:batches,id',
         ]);
 
         // Crear el nuevo producto
@@ -32,7 +31,6 @@ class ProductController extends Controller
             'image' => $request->input('image'),
             'category_id' => $request->input('category_id'),
             'quantity' => $request->input('quantity'),
-            'batch_id' => $request->input('batch_id'),
         ]);
 
         return response()->json([
@@ -69,7 +67,6 @@ class ProductController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'category_id' => 'required|exists:categories,id',
-            'batch_id' => 'required|exists:batches,id',
         ]);
 
         // Actualizar los datos del producto
@@ -80,7 +77,6 @@ class ProductController extends Controller
             'image' => $request->input('image'),
             'category_id' => $request->input('category_id'),
             'quantity' => $request->input('quantity'),
-            'batch_id' => $request->input('batch_id'),
         ]);
 
         // Responder con el producto actualizado y el código de estado 200 (OK)
@@ -114,5 +110,26 @@ class ProductController extends Controller
         }
 
         return response()->json($products, 200);
+    }
+
+    public function updateBatchForProducts(Request $request)
+    {
+        // Validar los datos recibidos
+        $request->validate([
+            'product_ids' => 'required|array',
+            'product_ids.*' => 'exists:products,id',
+        ]);
+        // Actualizar el campo batch_id para los productos especificados
+        Product::whereIn('id', $request->input('product_ids'))
+            ->update(['batch_id' => $request->input('batch_id')]);
+
+        // Obtener los productos actualizados para la respuesta
+        $updatedProducts = Product::whereIn('id', $request->input('product_ids'))->get();
+
+        // Responder con los productos actualizados
+        return response()->json([
+            'message' => 'Batch actualizado para los productos seleccionados.',
+            'products' => $updatedProducts,
+        ], 200);
     }
 }

@@ -40,6 +40,9 @@ class InventoryController extends Controller
                 'warehouse_id' => $request->input('warehouse_id'),
             ]);
 
+            // Cargar la relación con el producto
+            $inventory->load('product', 'warehouse');
+
             // Responder con el inventario creado y el código de estado 201 (Recurso creado)
             return response()->json($inventory, 201);
         }

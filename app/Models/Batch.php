@@ -14,6 +14,7 @@ class Batch extends Model
         'name',
         'description',
         'quantity',
+        'status',
         'order_creation_date',
     ];
 

@@ -132,4 +132,18 @@ class ProductController extends Controller
             'products' => $updatedProducts,
         ], 200);
     }
+
+
+    public function getProductsWithBatchAndStatus()
+    {
+        // Obtener los productos que tienen un batch_id asignado y el lote tiene el estatus "received"
+        $products = Product::whereHas('batches', function ($query) {
+            $query->where('status', 'received');
+        })
+            ->with('batches', 'inventory') // Cargar la relación con el lote
+            ->get();
+
+        // Responder con los productos filtrados
+        return response()->json($products, 200);
+    }
 }

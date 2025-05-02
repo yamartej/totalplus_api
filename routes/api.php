@@ -80,6 +80,7 @@ Route::middleware('auth:sanctum',)->group(function () {
     // Rutas para productos
     Route::get('/products/available', [ProductController::class, 'getAvailableProducts']);
     Route::put('/products/update-batch', [ProductController::class, 'updateBatchForProducts']);
+    Route::get('/products/with-batch-and-status', [ProductController::class, 'getProductsWithBatchAndStatus']);
     Route::get('/products', [ProductController::class, 'index']);
     Route::post('/products', [ProductController::class, 'create']);
     Route::get('/products/{id}', [ProductController::class, 'get']);
@@ -88,6 +89,8 @@ Route::middleware('auth:sanctum',)->group(function () {
 
 
     // Rutas para inventario
+    Route::post('/inventory/saveInventoryProducts', [InventoryController::class, 'saveInventoryProducts']);
+    Route::post('/inventory/removeAssignedInventory', [InventoryController::class, 'removeAssignedInventory']);
     Route::get('/inventory', [InventoryController::class, 'index']);
     Route::post('/inventory', [InventoryController::class, 'create']);
     Route::get('/inventory/{id}', [InventoryController::class, 'get']);

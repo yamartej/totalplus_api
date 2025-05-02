@@ -31,6 +31,7 @@ class BatchController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:255',
             'quantity' => 'required|integer|min:1',
+            'status' => 'required|in:created,received', // Validar que el status sea válido
             'order_creation_date' => 'required|date',
         ]);
 
@@ -46,6 +47,7 @@ class BatchController extends Controller
                 'name' => $request->input('name'),
                 'description' => $request->input('description'),
                 'quantity' => $request->input('quantity'),
+                'status' => $request->input('status'), // Guardar el campo status
                 'order_creation_date' => $request->input('order_creation_date'),
             ]);
         }
@@ -80,14 +82,21 @@ class BatchController extends Controller
             return response()->json(['message' => 'Lote no encontrado'], 404);
         }
 
+        // Validar los datos recibidos
         $request->validate([
             'name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:255',
+            'quantity' => 'required|integer|min:1',
+            'status' => 'required|in:created,received', // Validar que el status sea válido
+            'order_creation_date' => 'required|date',
         ]);
 
+        // Actualizar los datos del lote
         $batch->update([
             'name' => $request->input('name'),
             'description' => $request->input('description'),
             'quantity' => $request->input('quantity'),
+            'status' => $request->input('status'), // Actualizar el campo status
             'order_creation_date' => $request->input('order_creation_date'),
         ]);
 

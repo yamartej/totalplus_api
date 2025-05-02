@@ -6,6 +6,9 @@ use Illuminate\Http\Request;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\Warehouse;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
 
 class InventoryController extends Controller
 {
@@ -19,33 +22,26 @@ class InventoryController extends Controller
     {
         // Validar los datos recibidos del inventario
         $request->validate([
-            'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|integer|min:0',
+            'product_ids' => 'required|array',
+            'product_ids.*.id' => 'required|exists:products,id',
+            'product_ids.*.quantity' => 'required|integer|min:0',
             'warehouse_id' => 'required|exists:warehouses,id',
         ]);
 
-        // Verificar si ya existe un inventario para el producto y el almacén especificados
-        $inventory = Inventory::where('product_id', $request->input('product_id'))
-            ->where('warehouse_id', $request->input('warehouse_id'))
-            ->first();
-
-        if ($inventory) {
-            // Si ya existe, devolver un mensaje de error
-            return response()->json(['message' => 'Ya el almacén tiene este producto'], 400);
-        } else {
-            // Crear el nuevo inventario
-            $inventory = Inventory::create([
-                'product_id' => $request->input('product_id'),
-                'quantity' => $request->input('quantity'),
+        // Crear el nuevo inventario
+        $inventories = [];
+        foreach ($request->input('product_ids') as $product) {
+            $inventories[] = Inventory::create([
+                'product_id' => $product['id'],
                 'warehouse_id' => $request->input('warehouse_id'),
+                'quantity' => $product['quantity'], // Usar la cantidad proporcionada
             ]);
-
-            // Cargar la relación con el producto
-            $inventory->load('product', 'warehouse');
-
-            // Responder con el inventario creado y el código de estado 201 (Recurso creado)
-            return response()->json($inventory, 201);
         }
+
+        // Responder con el inventario creado y el código de estado 201 (Creado)
+        return response()->json([
+            'inventories' => $inventories,
+        ], 201);
     }
 
 
@@ -102,5 +98,63 @@ class InventoryController extends Controller
 
         // Responder con el código de estado 204 (Sin contenido) ya que no hay respuesta para eliminar
         return response()->json(null, 204);
+    }
+
+    public function saveInventoryProducts(Request $request)
+    {
+        try {
+            DB::beginTransaction();
+            //Agregar nuevos registros
+
+            $inventoriesNew = [];
+            if ($request->input('new_product_ids')) {
+                foreach ($request->input('new_product_ids') as $product) {
+                    $inventoriesNew[] = Inventory::create([
+                        'product_id' => $product['id'],
+                        'warehouse_id' => $request->input('warehouse_id'),
+                        'quantity' => $product['quantity'], // Usar la cantidad proporcionada
+                    ]);
+                }
+            }
+
+            //Actualizar registros
+            if ($request->input('product_ids')) {
+                foreach ($request->input('product_ids') as $product) {
+                    $inventory = Inventory::where('product_id', $product['id'])->first();
+                    $currentQuantity = $inventory->quantity + $product['quantity'];
+                    $inventory->update([
+                        'quantity' => $currentQuantity,
+                    ]);
+                }
+            }
+
+
+            DB::commit();
+            return response()->json(['message' => 'Inventario Actualizado'], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            // Si llegamos a este punto, ocurrió un error
+            return 'Transacción fallida: ' . $e->getMessage();
+        }
+    }
+    public function removeAssignedInventory(Request $request)
+    {
+        try {
+            DB::beginTransaction();
+
+            if ($request->input('product_ids')) {
+                foreach ($request->input('product_ids') as $product) {
+                    $inventory = Inventory::where('product_id', $product['id'])->first();
+                    $inventory->delete();
+                }
+            }
+
+            DB::commit();
+            return response()->json(null, 204);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            // Si llegamos a este punto, ocurrió un error
+            return 'Transacción fallida: ' . $e->getMessage();
+        }
     }
 }

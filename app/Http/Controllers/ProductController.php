@@ -146,4 +146,46 @@ class ProductController extends Controller
         // Responder con los productos filtrados
         return response()->json($products, 200);
     }
+
+    public function getProductsWithCosts()
+    {
+        $products = Product::with('batches.costs')
+            ->get()
+            ->map(function ($product) {
+                $totalCosts = $product->batches->costs->sum('amount');
+                $totalQuantity = Product::where('batch_id', $product->batch_id)->sum('quantity');
+                $unitCost = $totalQuantity > 0 ? round($totalCosts / $totalQuantity, 2) : 0;
+                $unitCostProduct = round($unitCost + $product->price, 2);
+
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'price' => $product->price,
+                    'quantity' => $product->quantity,
+                    'unit_cost' => $unitCost,
+                    'price_shipping' => $unitCostProduct,
+                    'final_cost' => $product->final_cost,
+                ];
+            });
+        return response()->json($products, 200);
+    }
+
+    public function updateFinalCostProduct(Request $request)
+    {
+        // Buscar el producto por su ID en la base de datos
+        $product = Product::find($request->input('id'));
+
+        // Si el producto no existe, responder con el código de estado 404 (No encontrado)
+        if (!$product) {
+            return response()->json(['message' => 'Producto no encontrado'], 404);
+        }
+
+        // Actualizar los datos del producto
+        $product->update([
+            'final_cost' => $request->input('final_cost'),
+        ]);
+
+        // Responder con el producto actualizado y el código de estado 200 (OK)
+        return response()->json($product, 200);
+    }
 }

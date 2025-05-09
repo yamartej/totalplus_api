@@ -78,9 +78,12 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::get('/refresh-token', [VerificationController::class, 'refreshToken']);
 
     // Rutas para productos
+
+    Route::put('/products/update-final-cost', [ProductController::class, 'updateFinalCostProduct']);
     Route::get('/products/available', [ProductController::class, 'getAvailableProducts']);
     Route::put('/products/update-batch', [ProductController::class, 'updateBatchForProducts']);
     Route::get('/products/with-batch-and-status', [ProductController::class, 'getProductsWithBatchAndStatus']);
+    Route::get('/products/with-costs', [ProductController::class, 'getProductsWithCosts']);
     Route::get('/products', [ProductController::class, 'index']);
     Route::post('/products', [ProductController::class, 'create']);
     Route::get('/products/{id}', [ProductController::class, 'get']);
@@ -149,6 +152,8 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::post('sales', [SaleController::class, 'store']);
 
     // Rutas para Lotes
+
+    Route::get('/batches/getBatchesReceived', [BatchController::class, 'getBatchesReceived']);
     Route::get('/batches', [BatchController::class, 'index']);
     Route::post('/batches', [BatchController::class, 'store']);
     Route::put('/batches/{id}', [BatchController::class, 'update']);

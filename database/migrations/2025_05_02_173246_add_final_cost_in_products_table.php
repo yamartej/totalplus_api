@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class ChangeBatchIdInProductsTable extends Migration
+class AddFinalCostInProductsTable extends Migration
 {
     /**
      * Run the migrations.
@@ -14,8 +14,7 @@ class ChangeBatchIdInProductsTable extends Migration
     public function up()
     {
         Schema::table('products', function (Blueprint $table) {
-            //Modificar el campo batch_id para que sea nullable
-            $table->unsignedBigInteger('batch_id')->nullable()->change();
+            $table->decimal('final_cost', 10, 2);
         });
     }
 
@@ -28,8 +27,6 @@ class ChangeBatchIdInProductsTable extends Migration
     {
         Schema::table('products', function (Blueprint $table) {
             //
-            // Revertir el cambio, haciendo el campo batch_id no nullable
-            $table->unsignedBigInteger('batch_id')->nullable(false)->change();
         });
     }
 }

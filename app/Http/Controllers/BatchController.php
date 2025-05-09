@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 
 use App\Models\Batch;
+use Illuminate\Support\Facades\DB;
 
 class BatchController extends Controller
 {
@@ -120,5 +121,13 @@ class BatchController extends Controller
         $batch->delete();
 
         return response()->json(['message' => 'Lote eliminado correctamente'], 200);
+    }
+
+    public function getBatchesReceived()
+    {
+        $batches = DB::table('batches')
+            ->where('status', '=', 'received')
+            ->get();
+        return response()->json($batches);
     }
 }

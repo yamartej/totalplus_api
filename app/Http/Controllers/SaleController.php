@@ -7,7 +7,7 @@ use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\SalesHistory;
 use App\Models\Inventory;
-use App\Models\SaleDestail;
+use App\Models\SaleDetail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Response;
 
@@ -46,8 +46,8 @@ class SaleController extends Controller
 
             // Crear el historial de ventas
             foreach ($request->input('carts') as $cart) {
-                SaleDestail::create([
-                    'sales_id' => $sale->id,
+                SaleDetail::create([
+                    'sale_id' => $sale->id,
                     'product_id' => $cart['productId'],
                     'quantity' => $cart['quantity'],
                 ]);
@@ -112,5 +112,21 @@ class SaleController extends Controller
         $sale->delete();
 
         return response()->json(null, 204);
+    }
+
+    public function getSalesByCreditType()
+    {
+        // Valida que el tipo sea 'credit' o 'normal'
+        $type = 'credit';
+        if (!in_array($type, ['credit', 'normal'])) {
+            return response()->json(['error' => 'Tipo de venta inválido'], 400);
+        }
+
+        $sales = Sale::with(['customer', 'details.product', 'paymentDetails']) // Incluye detalles y cada producto
+            ->where('type_of_sale', $type)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json($sales);
     }
 }

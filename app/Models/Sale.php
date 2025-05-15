@@ -29,4 +29,13 @@ class Sale extends Model
     {
         return $this->belongsTo(PointOfSale::class);
     }
+    public function details()
+    {
+        return $this->hasMany(SaleDetail::class);
+    }
+
+    public function paymentDetails()
+    {
+        return $this->hasMany(CreditDetail::class);
+    }
 }

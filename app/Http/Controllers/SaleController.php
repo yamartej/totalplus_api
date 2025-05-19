@@ -129,4 +129,33 @@ class SaleController extends Controller
 
         return response()->json($sales);
     }
+
+    public function getCreditByCustomers()
+    {
+        // Obtener la suma total de ventas tipo "credit" agrupadas por cliente
+        $credits = DB::table('sales')
+            ->select('customer_id', DB::raw('SUM(total_amount) as total_debt'))
+            ->where('type_of_sale', 'credit')
+            ->groupBy('customer_id')
+            ->get();
+
+        // Incluir información del cliente y sus pagos
+        $result = $credits->map(function ($item) {
+            $customer = \App\Models\Customer::find($item->customer_id);
+
+            // Obtener los pagos del cliente desde credit_customer_details
+            $payments = DB::table('credit_customer_details')
+                ->where('customer_id', $item->customer_id)
+                ->get();
+
+            return [
+                'customer_id' => $item->customer_id,
+                'customer_name' => $customer ? $customer->name : null,
+                'total_debt' => $item->total_debt,
+                'payments' => $payments,
+            ];
+        });
+
+        return response()->json($result);
+    }
 }

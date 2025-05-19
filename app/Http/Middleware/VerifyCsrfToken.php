@@ -40,5 +40,8 @@ class VerifyCsrfToken extends Middleware
         'api/costs/*',
         'api/credit-details',
         'api/credit-details/*',
+        'api/credit-customer-details',
+        'api/credit-customer-details/*',
+
     ];
 }

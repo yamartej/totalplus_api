@@ -142,7 +142,7 @@ class UserController extends Controller
         }
 
         // Verificar si el usuario tiene dependencias en point_of_sales
-        $hasDependencies = \DB::table('point_of_sales')->where('seller_id', $id)->exists();
+        $hasDependencies = DB::table('point_of_sales')->where('seller_id', $id)->exists();
         if ($hasDependencies) {
             return response()->json(['message' => 'No se puede eliminar el usuario porque tiene dependencias en Punto de Ventas'], 400);
         }

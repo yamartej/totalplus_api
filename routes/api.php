@@ -26,8 +26,8 @@ use App\Http\Controllers\CostController;
 use App\Http\Controllers\CreditDetailController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
-use App\Models\Sale;
-use App\Models\Supplier;
+use App\Http\Controllers\CreditCustomerDetail;
+use App\Http\Controllers\CreditCustomerDetailController;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
@@ -148,6 +148,7 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::delete('/pops/{id}', [PointOfSaleController::class, 'destroy']);
 
     // Rutas para Ventas
+    Route::get('/sales/credit-type-by-customer', [SaleController::class, 'getCreditByCustomers']);
     Route::get('/sales/sales-by-credit-type', [SaleController::class, 'getSalesByCreditType']);
     Route::get('/sales', [SaleController::class, 'index']);
     Route::post('/sales', [SaleController::class, 'store']);
@@ -168,10 +169,15 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::get('/costs/{id}', [CostController::class, 'show']);
     Route::delete('/costs/{id}', [CostController::class, 'destroy']);
 
-    // Rutas para Detalle de Pagos
+    // Rutas para Detalle de Pagos por factura
     Route::get('/credit-details', [CreditDetailController::class, 'index']);
     Route::post('/credit-details', [CreditDetailController::class, 'store']);
     Route::delete('/credit-details/{id}', [CreditDetailController::class, 'destroy']);
+
+    // Rutas para Detalle de Pagos por cliente
+    Route::get('/credit-customer-details', [CreditCustomerDetailController::class, 'index']);
+    Route::post('/credit-customer-details', [CreditCustomerDetailController::class, 'store']);
+    Route::delete('/credit-customer-details/{id}', [CreditCustomerDetailController::class, 'destroy']);
 
     // Agrega las demás rutas protegidas aquí
 });

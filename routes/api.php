@@ -155,6 +155,7 @@ Route::middleware('auth:sanctum',)->group(function () {
 
     // Rutas para Lotes
 
+    Route::get('/batches/get-batches-with-products', [BatchController::class, 'getBatchesWithProducts']);
     Route::get('/batches/getBatchesReceived', [BatchController::class, 'getBatchesReceived']);
     Route::get('/batches', [BatchController::class, 'index']);
     Route::post('/batches', [BatchController::class, 'store']);

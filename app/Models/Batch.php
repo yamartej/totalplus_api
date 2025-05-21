@@ -18,13 +18,12 @@ class Batch extends Model
         'order_creation_date',
     ];
 
-    public function products()
-    {
-        return $this->belongsToMany(Product::class)->withPivot('quantity')->withTimestamps();
-    }
-
     public function costs()
     {
         return $this->hasMany(Cost::class);
+    }
+    public function products()
+    {
+        return $this->hasMany(\App\Models\Product::class, 'batch_id');
     }
 }

@@ -130,4 +130,11 @@ class BatchController extends Controller
             ->get();
         return response()->json($batches);
     }
+
+    public function getBatchesWithProducts()
+    {
+        $batches = Batch::with('products')->get();
+
+        return response()->json($batches);
+    }
 }

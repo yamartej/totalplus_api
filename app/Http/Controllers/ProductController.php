@@ -31,6 +31,7 @@ class ProductController extends Controller
             'image' => $request->input('image'),
             'category_id' => $request->input('category_id'),
             'quantity' => $request->input('quantity'),
+            'batch_id' => $request->input('batch_id'),
         ]);
 
         return response()->json([
@@ -77,6 +78,7 @@ class ProductController extends Controller
             'image' => $request->input('image'),
             'category_id' => $request->input('category_id'),
             'quantity' => $request->input('quantity'),
+            'batch_id' => $request->input('batch_id'),
         ]);
 
         // Responder con el producto actualizado y el código de estado 200 (OK)
@@ -138,7 +140,7 @@ class ProductController extends Controller
     {
         // Obtener los productos que tienen un batch_id asignado y el lote tiene el estatus "received"
         $products = Product::whereHas('batches', function ($query) {
-            $query->where('status', 'received');
+            $query->where('status', 'created');
         })
             ->with('batches', 'inventory') // Cargar la relación con el lote
             ->get();

@@ -16,7 +16,9 @@ class CreditCustomerDetailController extends Controller
      */
     public function index()
     {
-        //
+        $creditDetails = CreditCustomerDetail::with('customer')->get();
+
+        return response()->json($creditDetails);
     }
 
     /**

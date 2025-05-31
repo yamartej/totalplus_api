@@ -146,4 +146,13 @@ class CustomerController extends Controller
         // Responder con los clientes encontrados y el código de estado 200 (OK)
         return response()->json($customers, 200);
     }
+
+    public function getCustomersWithCreditsAndPayments()
+    {
+        // Obtener todos los clientes con sus detalles de crédito y pagos
+        $customers = Customer::with(['creditCustomerDetails', 'sale'])->get();
+
+        // Responder con los clientes y el código de estado 200 (OK)
+        return response()->json($customers, 200);
+    }
 }

@@ -88,14 +88,10 @@ class SaleController extends Controller
             return response()->json(['message' => 'Venta no encontrado'], 404);
         }
 
-        $request->validate([
-            'product_id' => 'required|exists:products,id',
-            'customer_id' => 'required|exists:customers,id',
-            'quantity' => 'required|integer|min:0',
-        ]);
-
         $sale->update([
-            'quantity' => $request->input('quantity'),
+            'total_amount' => $request->input('total_amount'),
+            'credit_note_detail' => $request->input('credit_note_detail'),
+            'credit_note_date' => $request->input('credit_note_date', now()),
         ]);
 
         return response()->json($sale, 200);
@@ -157,5 +153,49 @@ class SaleController extends Controller
         });
 
         return response()->json($result);
+    }
+    public function creditCustomerRegister(Request $request)
+    {
+        $request->validate([
+            'amount' => 'required|numeric',
+        ]);
+
+        $user = $request->user();
+
+        $sale = Sale::create([
+            'customer_id' => $request->input('customer_id'),
+            'seller_id' => $user->id,
+            'total_amount' => $request->input('amount'),
+            'credit_note_date' => $request->input('credit_note_date', now()),
+            'credit_note_detail' => $request->input('credit_note_detail', ''),
+            'pop_id' => $request->input('pop_id', null),
+            'type_of_sale' => 'credit',
+        ]);
+
+        return response()->json($sale, 201);
+    }
+
+    public function getCreditNoteList()
+    {
+        $type = 'credit';
+
+        $sales = Sale::with(['customer']) // Incluye detalles y cada producto
+            ->where('type_of_sale', $type)
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        // Formatear la respuesta para incluir solo los campos necesarios
+        $sales = $sales->map(function ($sale) {
+            return [
+                'sale_id' => $sale->id,
+                'customer_id' => $sale->customer_id,
+                'customer_name' => $sale->customer ? $sale->customer->name : null,
+                'total_amount' => $sale->total_amount,
+                'credit_note_date' => $sale->credit_note_date,
+                'credit_note_detail' => $sale->credit_note_detail,
+            ];
+        });
+
+        return response()->json($sales);
     }
 }

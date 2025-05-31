@@ -126,6 +126,7 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
 
     // Rutas para cliente
+    Route::get('/customers/with-credits-and-payments', [CustomerController::class, 'getCustomersWithCreditsAndPayments']);
     Route::get('/customers', [CustomerController::class, 'index']);
     Route::post('/customers', [CustomerController::class, 'store']);
     Route::get('/customers/{id}', [CustomerController::class, 'show']);
@@ -148,10 +149,15 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::delete('/pops/{id}', [PointOfSaleController::class, 'destroy']);
 
     // Rutas para Ventas
+
+    Route::get('/sales/credit-note-list', [SaleController::class, 'getCreditNoteList']);
+    Route::post('/sales/credit-customer-register', [SaleController::class, 'creditCustomerRegister']);
     Route::get('/sales/credit-type-by-customer', [SaleController::class, 'getCreditByCustomers']);
     Route::get('/sales/sales-by-credit-type', [SaleController::class, 'getSalesByCreditType']);
     Route::get('/sales', [SaleController::class, 'index']);
     Route::post('/sales', [SaleController::class, 'store']);
+    Route::post('/sales/{id}', [SaleController::class, 'destroy']);
+
 
     // Rutas para Lotes
 

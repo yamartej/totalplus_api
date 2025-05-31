@@ -15,6 +15,8 @@ class Sale extends Model
         'pop_id',
         'total_amount',
         'type_of_sale',
+        'credit_note_date',
+        'credit_note_detail',
     ];
 
     public function customer()

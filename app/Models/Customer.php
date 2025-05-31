@@ -18,6 +18,6 @@ class Customer extends Model
 
     public function creditCustomerDetails()
     {
-        return $this->hasOne(CreditCustomerDetail::class);
+        return $this->hasMany(CreditCustomerDetail::class);
     }
 }

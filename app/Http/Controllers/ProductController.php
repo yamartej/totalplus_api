@@ -151,7 +151,10 @@ class ProductController extends Controller
 
     public function getProductsWithCosts()
     {
-        $products = Product::with('batches.costs')
+        $products = Product::with('batches.costs', 'inventory')
+            ->whereHas('batches.costs', function ($query) {
+                $query->where('amount', '>', 0);
+            })
             ->get()
             ->map(function ($product) {
                 $totalCosts = $product->batches->costs->sum('amount');
@@ -167,6 +170,12 @@ class ProductController extends Controller
                     'unit_cost' => $unitCost,
                     'price_shipping' => $unitCostProduct,
                     'final_cost' => $product->final_cost,
+                    'wholesale_final_cost' => $product->wholesale_final_cost,
+                    'batches' => $product->batches,
+                    'costs' => $product->batches->costs,
+                    'warehouse' => $product->inventory->warehouse,
+                    'inventory' => $product->inventory,
+
                 ];
             });
         return response()->json($products, 200);
@@ -185,6 +194,7 @@ class ProductController extends Controller
         // Actualizar los datos del producto
         $product->update([
             'final_cost' => $request->input('final_cost'),
+            'wholesale_final_cost' => $request->input('wholesale_final_cost'),
         ]);
 
         // Responder con el producto actualizado y el código de estado 200 (OK)

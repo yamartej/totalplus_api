@@ -17,7 +17,8 @@ class Product extends Model
         'category_id',
         'quantity',
         'batch_id',
-        'final_cost'
+        'final_cost',
+        'wholesale_final_cost',
     ];
 
     public function category()

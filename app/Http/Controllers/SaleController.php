@@ -15,7 +15,9 @@ class SaleController extends Controller
 {
     public function index()
     {
-        $sales = Sale::all();
+        $sales = Sale::with(['customer', 'details.product', 'paymentDetails']) // Incluye detalles y cada producto
+            ->orderBy('created_at', 'desc')
+            ->get();
         return response()->json($sales);
     }
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Customer;
+use Symfony\Component\Console\Input\Input;
 
 class CustomerController extends Controller
 {
@@ -33,6 +34,12 @@ class CustomerController extends Controller
             'phone' => 'required',
             'client_id' => 'required',
         ]);
+
+        $customer = Customer::where('client_id', $request->input('client_id'))->get();
+
+        if ($customer) {
+            return response()->json(['message' => 'Cliente en sistema'], 404);
+        }
 
         // Crear el nuevo cliente
         $customer = Customer::create([

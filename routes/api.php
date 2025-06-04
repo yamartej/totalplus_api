@@ -28,6 +28,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\CreditCustomerDetail;
 use App\Http\Controllers\CreditCustomerDetailController;
+use App\Http\Controllers\SaleDetailController;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
@@ -157,6 +158,8 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::get('/sales', [SaleController::class, 'index']);
     Route::post('/sales', [SaleController::class, 'store']);
     Route::post('/sales/{id}', [SaleController::class, 'destroy']);
+
+    Route::put('/sales/detail/{id}', [SaleDetailController::class, 'update']);
 
 
     // Rutas para Lotes

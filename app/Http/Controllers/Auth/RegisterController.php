@@ -90,7 +90,7 @@ class RegisterController extends Controller
             return response()->json(['message' => 'El rol Administrador no existe en la base de datos.'], 404);
         }
 
-        //$user->notify(new CustomVerifyEmail);
+        $user->notify(new CustomVerifyEmail);
 
         return $user;
     }

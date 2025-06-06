@@ -35,22 +35,21 @@ class CustomerController extends Controller
             'client_id' => 'required',
         ]);
 
-        $customer = Customer::where('client_id', $request->input('client_id'))->get();
+        $customerInfo = Customer::where('client_id', $request->input('client_id'))->get();
 
-        if ($customer) {
+        if ($customerInfo->isEmpty()) {
+            // Crear el nuevo cliente
+            $customer = Customer::create([
+                'client_id' => $request->input('client_id'),
+                'name' => $request->input('name'),
+                'address' => $request->input('address'),
+                'phone' => $request->input('phone'),
+            ]);
+
+            return response()->json($customer, 201);
+        } else {
             return response()->json(['message' => 'Cliente en sistema'], 404);
         }
-
-        // Crear el nuevo cliente
-        $customer = Customer::create([
-            'client_id' => $request->input('client_id'),
-            'name' => $request->input('name'),
-            'address' => $request->input('address'),
-            'phone' => $request->input('phone'),
-        ]);
-
-        // Responder con el cliente creado y el código de estado 201 (Recurso creado)
-        return response()->json($customer, 201);
     }
 
     /**

@@ -57,7 +57,6 @@ class RegisterController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
-            'company' => 'required|string|max:255',
         ]);
     }
 
@@ -70,14 +69,14 @@ class RegisterController extends Controller
     protected function create(array $data)
     {
         // Buscar o crear la empresa
-        $company = Company::create(['name' => $data['company']]);
+        //$company = Company::create(['name' => $data['company']]);
 
         // Crear el usuario y asignarlo a la empresa
         $user = User::create([
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
-            'company_id' => $company->id, // Relación con la empresa
+            //'company_id' => $company->id, // Relación con la empresa
         ]);
 
         // Buscar el rol de administrador

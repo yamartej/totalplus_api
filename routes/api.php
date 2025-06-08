@@ -34,6 +34,7 @@ use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use App\Models\User;
 
 
 
@@ -191,11 +192,21 @@ Route::middleware('auth:sanctum',)->group(function () {
 
     // Agrega las demás rutas protegidas aquí
 });
-Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
-    $request->fulfill();
+Route::get('/email/verify/{id}/{hash}', function ($id, $hash) {
+    $user = User::findOrFail($id);
+    if (! hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
+        return response()->json(['message' => 'Invalid verification link'], 403);
+    }
 
-    return response()->json(['message' => 'Email verified successfully.']);
-})->middleware(['auth', 'signed'])->name('verification.verify');
+    if ($user->hasVerifiedEmail()) {
+        //return response()->json(['message' => 'Email already verified']);
+        return redirect(env('FRONTEND_URL') . '/verify-success');
+    }
+
+    $user->markEmailAsVerified();
+
+    return redirect(env('FRONTEND_URL') . '/verify-email');
+})->middleware(['signed'])->name('verification.verify');
 
 Route::post('/email/verification-notification', function (Request $request) {
     $request->user()->sendEmailVerificationNotification();

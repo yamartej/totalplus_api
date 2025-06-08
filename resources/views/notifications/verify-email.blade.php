@@ -11,7 +11,7 @@
             Por favor, haz clic en el siguiente botón para verificar tu correo electrónico y activar tu cuenta:
         </p>
         <div style="text-align: center; margin: 32px 0;">
-            <a href="{{ $url }}" style="background: #007bff; color: #fff; padding: 12px 32px; border-radius: 5px; text-decoration: none; font-size: 16px;">
+            <a href="{{ $url }}" style="background: #72cb10; color: #fff; padding: 12px 32px; border-radius: 5px; text-decoration: none; font-size: 16px;">
                 Verificar correo electrónico
             </a>
         </div>

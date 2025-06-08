@@ -4,6 +4,7 @@ namespace App\Exceptions;
 
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Throwable;
+use Illuminate\Routing\Exceptions\InvalidSignatureException;
 
 class Handler extends ExceptionHandler
 {
@@ -35,7 +36,15 @@ class Handler extends ExceptionHandler
     public function register()
     {
         $this->reportable(function (Throwable $e) {
-            //
+            // Puedes dejar esto vacío o agregar logs si deseas
+        });
+
+        $this->renderable(function (InvalidSignatureException $e, $request) {
+            if ($request->is('email/verify/*')) {
+                return redirect(env('FRONTEND_URL') . '/verify-error?reason=invalid-signature');
+            }
+
+            return redirect(env('FRONTEND_URL') . '/verify-error?reason=invalid-signature');
         });
     }
 }

@@ -35,10 +35,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use App\Models\User;
-
-
-
-
+use App\Notifications\CustomVerifyEmail;
 
 /*
 |--------------------------------------------------------------------------
@@ -190,6 +187,15 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::post('/credit-customer-details', [CreditCustomerDetailController::class, 'store']);
     Route::delete('/credit-customer-details/{id}', [CreditCustomerDetailController::class, 'destroy']);
 
+    Route::post('/email/verification-notification', function (Request $request) {
+        $user = $request->user();
+
+        //$user->sendEmailVerificationNotification();
+        $user->notify(new CustomVerifyEmail);
+
+        return response()->json(['message' => 'Correo de verificación reenviado']);
+    });
+
     // Agrega las demás rutas protegidas aquí
 });
 Route::get('/email/verify/{id}/{hash}', function ($id, $hash) {
@@ -208,11 +214,11 @@ Route::get('/email/verify/{id}/{hash}', function ($id, $hash) {
     return redirect(env('FRONTEND_URL') . '/verify-email');
 })->middleware(['signed'])->name('verification.verify');
 
-Route::post('/email/verification-notification', function (Request $request) {
+/*Route::post('/email/verification-notification', function (Request $request) {
     $request->user()->sendEmailVerificationNotification();
 
     return response()->json(['message' => 'Verification link sent!']);
-})->middleware(['auth', 'throttle:6,1'])->name('verification.send');
+})->middleware(['auth', 'throttle:6,1'])->name('verification.send');*/
 
 
 /*Route::get('/email/verify/{id}/{hash}', function (Request $request, $id, $hash) {

@@ -162,6 +162,7 @@ class ProductController extends Controller
                 $unitCost = $totalQuantity > 0 ? round($totalCosts / $totalQuantity, 2) : 0;
                 $unitCostProduct = round($unitCost + $product->price, 2);
 
+
                 return [
                     'id' => $product->id,
                     'name' => $product->name,
@@ -172,10 +173,9 @@ class ProductController extends Controller
                     'final_cost' => $product->final_cost,
                     'wholesale_final_cost' => $product->wholesale_final_cost,
                     'batches' => $product->batches,
-                    'costs' => $product->batches->costs,
-                    'warehouse' => $product->inventory->warehouse,
+                    'costs' => $product->batches?->costs,
+                    'warehouse' => $product->inventory?->warehouse,
                     'inventory' => $product->inventory,
-
                 ];
             });
         return response()->json($products, 200);

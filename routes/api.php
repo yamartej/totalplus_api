@@ -184,6 +184,7 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::delete('/credit-details/{id}', [CreditDetailController::class, 'destroy']);
 
     // Rutas para Detalle de Pagos por cliente
+    Route::get('/credit-customer-details/payments-by-date', [CreditCustomerDetailController::class, 'paymentByDate']);
     Route::get('/credit-customer-details', [CreditCustomerDetailController::class, 'index']);
     Route::post('/credit-customer-details', [CreditCustomerDetailController::class, 'store']);
     Route::delete('/credit-customer-details/{id}', [CreditCustomerDetailController::class, 'destroy']);

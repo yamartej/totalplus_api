@@ -86,4 +86,29 @@ class CreditCustomerDetailController extends Controller
 
         return response()->json(null, 204);
     }
+
+    public function paymentByDate(Request $request)
+    {
+        // Tomar en cuenta varios escenarios de fechas
+        // 1. Fecha de inicio y fin proporcionadas
+        // 2. Solo fecha de inicio proporcionada (hasta la fecha actual)
+        // 3. Solo fecha de fin proporcionada (desde el inicio del mes actual)
+        // 4. Ninguna fecha proporcionada (usar el mes actual)
+        $startDate = $request->input('start_date');
+        $endDate = $request->input('end_date');
+        $query = CreditCustomerDetail::with('customer');
+        if ($startDate && $endDate) {
+            $query->whereBetween('payment_date', [$startDate, $endDate]);
+        } elseif ($startDate) {
+            $query->where('payment_date', '>=', $startDate);
+        } elseif ($endDate) {
+            $query->where('payment_date', '<=', $endDate);
+        } else {
+            // Si no se proporcionan fechas, usar el mes actual
+            $query->whereMonth('payment_date', date('m'))
+                ->whereYear('payment_date', date('Y'));
+        }
+        $creditDetails = $query->get();
+        return response()->json($creditDetails);
+    }
 }

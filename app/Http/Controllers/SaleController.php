@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\SalesHistory;
 use App\Models\Inventory;
+use App\Models\Product;
 use App\Models\SaleDetail;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Response;
@@ -15,7 +16,7 @@ class SaleController extends Controller
 {
     public function index()
     {
-        $sales = Sale::with(['customer', 'details.product', 'paymentDetails']) // Incluye detalles y cada producto
+        $sales = Sale::with(['customer', 'details.product.inventory', 'paymentDetails']) // Incluye detalles y cada producto
             ->orderBy('created_at', 'desc')
             ->get();
         return response()->json($sales);
@@ -101,15 +102,36 @@ class SaleController extends Controller
 
     public function destroy($id)
     {
-        $sale = Sale::find($id);
+        DB::beginTransaction();
+        try {
 
-        if (!$sale) {
-            return response()->json(['message' => 'Venta no encontrado'], 404);
+            $sale = Sale::find($id);
+            // Verificar si tiene detalles de venta asociados
+            if ($sale && $sale->details->count() > 0) {
+                $product = Product::findOrFail($sale->details->first()->product_id);
+                $inventory = $product->inventory;
+                $inventory->quantity += $sale->details->sum('quantity'); // Devolver la cantidad al inventario
+                $inventory->save();
+
+                // Eliminar los detalles de la venta
+                foreach ($sale->details as $detail) {
+                    $detail->delete();
+                }
+            }
+
+            if (!$sale) {
+                return response()->json(['message' => 'Venta no encontrado'], 404);
+            }
+
+            $sale->delete();
+
+            DB::commit();
+
+            return response()->json(null, 204);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['error' => $e->getMessage()], 500);
         }
-
-        $sale->delete();
-
-        return response()->json(null, 204);
     }
 
     public function getSalesByCreditType()

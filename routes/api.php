@@ -158,6 +158,7 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::post('/sales/{id}', [SaleController::class, 'destroy']);
 
     Route::put('/sales/detail/{id}', [SaleDetailController::class, 'update']);
+    Route::delete('/sales/detail/{id}', [SaleDetailController::class, 'destroy']);
 
 
     // Rutas para Lotes

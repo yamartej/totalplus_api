@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use App\Models\Company;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 
 class UserController extends Controller
@@ -18,9 +19,25 @@ class UserController extends Controller
      */
     public function index()
     {
-        $users = User::with('roles', 'company')->get();
+        $user = auth()->user();
+
+        // Carga los roles del usuario autenticado
+        $roles = $user->roles->pluck('name'); // Ej: ['Administrador', 'Soporte Técnico']
+
+        if ($roles->contains('Soporte Técnico')) {
+            // Soporte Técnico ve todos los usuarios de todas las empresas
+            $users = User::with('roles')->get();
+        } else {
+            // Otros roles solo ven usuarios de su misma empresa
+            $users = User::with('roles', 'company')
+                ->where('company_id', $user->company_id)
+                ->get();
+        }
+
         return response()->json($users);
     }
+
+    public function getUsersByCompany() {}
 
     /**
      * Store a newly created resource in storage.

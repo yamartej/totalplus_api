@@ -64,6 +64,7 @@ Route::middleware('auth:sanctum',)->group(function () {
     // Rutas protegidas aquí
 
     // Ruta de users
+
     Route::get('/users/by-role', [UserController::class, 'getUsersByRole']);
     Route::get('/users', [UserController::class, 'index']);
     Route::post('/users', [UserController::class, 'store']);

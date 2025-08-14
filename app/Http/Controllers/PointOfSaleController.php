@@ -15,7 +15,7 @@ class PointOfSaleController extends Controller
      */
     public function index()
     {
-        $pop = PointOfSale::all();
+        $pop = PointOfSale::with(['company'])->get();
         return response()->json($pop, 200);
     }
 
@@ -33,7 +33,9 @@ class PointOfSaleController extends Controller
         ]);
 
         //validar que el identificador no exista
-        $pop = PointOfSale::where('identifier', $request->input('identifier'))->first();
+        $pop = PointOfSale::where('identifier', $request->input('identifier'))
+            ->where('company_id', $request->input('company_id'))
+            ->first();
         if ($pop) {
             return response()->json(['message' => 'El identificador ya existe'], 400);
         }
@@ -41,7 +43,10 @@ class PointOfSaleController extends Controller
         $pop = PointOfSale::create([
             'identifier' => $request->input('identifier'),
             'ubication' => $request->input('ubication'),
+            'company_id' => $request->input('company_id'),
         ]);
+        $pop->load('company');
+
 
         return response()->json($pop, 201);
     }
@@ -131,6 +136,17 @@ class PointOfSaleController extends Controller
 
         if (!$pop) {
             return response()->json(['message' => 'Punto de venta no encontrado'], 404);
+        }
+
+        return response()->json($pop, 200);
+    }
+
+    public function getByCompanyId($id)
+    {
+        $pop = PointOfSale::with(['company'])->where('company_id', $id)->get();
+
+        if ($pop->isEmpty()) {
+            return response()->json(['message' => 'No se encontraron puntos de venta para esta empresa'], 404);
         }
 
         return response()->json($pop, 200);

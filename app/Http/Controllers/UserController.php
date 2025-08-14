@@ -19,25 +19,9 @@ class UserController extends Controller
      */
     public function index()
     {
-        $user = auth()->user();
-
-        // Carga los roles del usuario autenticado
-        $roles = $user->roles->pluck('name'); // Ej: ['Administrador', 'Soporte Técnico']
-
-        if ($roles->contains('Soporte Técnico')) {
-            // Soporte Técnico ve todos los usuarios de todas las empresas
-            $users = User::with('roles')->get();
-        } else {
-            // Otros roles solo ven usuarios de su misma empresa
-            $users = User::with('roles', 'company')
-                ->where('company_id', $user->company_id)
-                ->get();
-        }
-
+        $users = User::with(['roles', 'company'])->get();
         return response()->json($users);
     }
-
-    public function getUsersByCompany() {}
 
     /**
      * Store a newly created resource in storage.
@@ -124,17 +108,9 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
         ]);
 
-        // Buscar o crear la empresa
-        if ($request->input('company')) {
-            $company = Company::create(['name' => $request->input('company')]);
-            $company_id = $company->id;
-        } else {
-            $company_id = $request->input('companyName');
-        }
-
         $user->update([
             'name' => $request->input('name'),
-            'company_id' => $company_id,
+            //'company_id' => $company_id,
             'email' => $request->input('email'),
             'rol_id' => $request->input('rol')
         ]);
@@ -168,5 +144,15 @@ class UserController extends Controller
         $user->delete();
 
         return response()->json(null, 204);
+    }
+
+    public function getUsersByCompany($companyId)
+    {
+        $users = User::where('company_id', $companyId)->with(['roles', 'company'])->get();
+        if ($users->isEmpty()) {
+            return response()->json(['message' => 'No se encontraron usuarios para la empresa especificada'], 404);
+        }
+
+        return response()->json($users, 200);
     }
 }

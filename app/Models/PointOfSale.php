@@ -11,5 +11,10 @@ class PointOfSale extends Model
     use HasFactory;
 
     protected $table = 'point_of_sales';
-    protected $fillable = ['identifier', 'ubication', 'status', 'seller', 'seller_id'];
+    protected $fillable = ['identifier', 'ubication', 'status', 'seller', 'seller_id', 'company_id'];
+
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
+    }
 }

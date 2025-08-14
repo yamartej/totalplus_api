@@ -66,6 +66,7 @@ Route::middleware('auth:sanctum',)->group(function () {
     // Ruta de users
 
     Route::get('/users/by-role', [UserController::class, 'getUsersByRole']);
+    Route::get('/users/getUsersByCompany/{id}', [UserController::class, 'getUsersByCompany']);
     Route::get('/users', [UserController::class, 'index']);
     Route::post('/users', [UserController::class, 'store']);
     Route::get('/users/{id}', [UserController::class, 'show']);
@@ -142,6 +143,7 @@ Route::middleware('auth:sanctum',)->group(function () {
 
     // Rutas para Puntos de Ventas
     Route::get('/pops/seller/{seller_id}', [PointOfSaleController::class, 'getBySellerId']);
+    Route::get('/pops/by-company/{company_id}', [PointOfSaleController::class, 'getByCompanyId']);
     Route::get('/pops', [PointOfSaleController::class, 'index']);
     Route::post('/pops', [PointOfSaleController::class, 'store']);
     Route::get('/pops/{id}', [PointOfSaleController::class, 'show']);

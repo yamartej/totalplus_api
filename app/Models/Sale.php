@@ -17,6 +17,7 @@ class Sale extends Model
         'type_of_sale',
         'credit_note_date',
         'credit_note_detail',
+        'company_id',
     ];
 
     public function customer()

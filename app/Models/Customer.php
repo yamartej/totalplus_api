@@ -9,7 +9,7 @@ class Customer extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['client_id', 'name', 'address', 'phone'];
+    protected $fillable = ['client_id', 'name', 'address', 'phone', 'company_id'];
 
     public function sale()
     {
@@ -19,5 +19,9 @@ class Customer extends Model
     public function creditCustomerDetails()
     {
         return $this->hasMany(CreditCustomerDetail::class);
+    }
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
     }
 }

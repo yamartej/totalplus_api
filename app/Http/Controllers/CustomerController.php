@@ -15,7 +15,7 @@ class CustomerController extends Controller
      */
     public function index()
     {
-        $customers = Customer::all();
+        $customers = Customer::with(['company'])->get();
         return response()->json($customers);
     }
 
@@ -35,11 +35,15 @@ class CustomerController extends Controller
             'client_id' => 'required',
         ]);
 
-        $customerInfo = Customer::where('client_id', $request->input('client_id'))->get();
+
+        $customerInfo = Customer::where('client_id', $request->input('client_id'))
+            ->where('company_id', $request->input('company_id'))
+            ->get();
 
         if ($customerInfo->isEmpty()) {
             // Crear el nuevo cliente
             $customer = Customer::create([
+                'company_id' => $request->input('company_id'),
                 'client_id' => $request->input('client_id'),
                 'name' => $request->input('name'),
                 'address' => $request->input('address'),
@@ -58,11 +62,13 @@ class CustomerController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function show($id)
+    public function show($id, Request $request)
     {
         // Buscar el cliente por su ID en la base de datos
         //$customer = Customer::find($id);
-        $customer = Customer::where('client_id', $id)->get();
+        $customer = Customer::where('client_id', $id)
+            ->where('company_id', $request->input('company_id'))
+            ->get();
 
         // Si el cliente no existe, responder con el código de estado 404 (No encontrado)
         if (!$customer) {
@@ -159,6 +165,12 @@ class CustomerController extends Controller
         $customers = Customer::with(['creditCustomerDetails', 'sale'])->get();
 
         // Responder con los clientes y el código de estado 200 (OK)
+        return response()->json($customers, 200);
+    }
+
+    public function getCustomersByCompany($id)
+    {
+        $customers = Customer::with(['company'])->where('company_id', $id)->get();
         return response()->json($customers, 200);
     }
 }

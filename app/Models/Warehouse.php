@@ -11,7 +11,7 @@ class Warehouse extends Model
 
     protected $table = 'warehouses';
 
-    protected $fillable = ['name', 'description', 'address'];
+    protected $fillable = ['name', 'description', 'address', 'company_id'];
 
     public function products()
     {
@@ -26,5 +26,10 @@ class Warehouse extends Model
     public function inventories()
     {
         return $this->hasMany(Inventory::class);
+    }
+
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
     }
 }

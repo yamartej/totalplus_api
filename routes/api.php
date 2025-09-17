@@ -60,6 +60,8 @@ Route::post('/register', [RegisterController::class, 'register']);
 // Ruta de verificación de correo
 Route::post('/check-email', [AuthController::class, 'checkEmail']);
 
+Route::get('/companies', [CompanyController::class, 'index']);
+
 Route::middleware('auth:sanctum',)->group(function () {
     // Rutas protegidas aquí
 
@@ -117,8 +119,6 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::post('/permissions', [RolePermissionController::class, 'update']);
 
     // Rutas para Roles
-    Route::get('/companies', [CompanyController::class, 'index']);
-
     // Rutas para Agregar Categorias de los productos
     Route::get('/categories', [CategoryController::class, 'index']);
     Route::post('/categories', [CategoryController::class, 'store']);
@@ -128,6 +128,7 @@ Route::middleware('auth:sanctum',)->group(function () {
 
     // Rutas para cliente
     Route::get('/customers/with-credits-and-payments', [CustomerController::class, 'getCustomersWithCreditsAndPayments']);
+    Route::get('/customers/get-customers-by-company/{id}', [CustomerController::class, 'getCustomersByCompany']);
     Route::get('/customers', [CustomerController::class, 'index']);
     Route::post('/customers', [CustomerController::class, 'store']);
     Route::get('/customers/{id}', [CustomerController::class, 'show']);
@@ -135,6 +136,8 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::delete('/customers/{id}', [CustomerController::class, 'delete']);
 
     // Rutas para Agregar Almacenes de los productos
+
+    Route::get('/warehouses/get-by-company/{company_id}', [WarehouseController::class, 'getByCompany']);
     Route::get('/warehouses', [WarehouseController::class, 'index']);
     Route::post('/warehouses', [WarehouseController::class, 'store']);
     Route::put('/warehouses/{id}', [WarehouseController::class, 'put']);
@@ -151,7 +154,7 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::delete('/pops/{id}', [PointOfSaleController::class, 'destroy']);
 
     // Rutas para Ventas
-
+    Route::get('/sales/credit-note-list-by-company/{id}', [SaleController::class, 'getCreditNoteListByCompany']);
     Route::get('/sales/credit-note-list', [SaleController::class, 'getCreditNoteList']);
     Route::post('/sales/credit-customer-register', [SaleController::class, 'creditCustomerRegister']);
     Route::get('/sales/credit-type-by-customer', [SaleController::class, 'getCreditByCustomers']);

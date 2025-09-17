@@ -10,7 +10,7 @@ class WarehouseController extends Controller
 {
     public function index()
     {
-        $warehouses = Warehouse::all();
+        $warehouses = Warehouse::with(['company'])->get();
         //return WarehouseResource::collection($warehouses);
         return response()->json($warehouses);
     }
@@ -26,7 +26,9 @@ class WarehouseController extends Controller
             'name' => $request->input('name'),
             'description' => $request->input('description'),
             'address' => $request->input('address'),
+            'company_id' => $request->input('company_id'),
         ]);
+        $warehouse->load('company');
 
         //return new WarehouseResource($warehouse);
         return response()->json($warehouse, 201);
@@ -79,5 +81,12 @@ class WarehouseController extends Controller
         $warehouse->delete();
 
         return response()->json(null, 204);
+    }
+
+    public function getByCompany($company_id)
+    {
+        $warehouses = Warehouse::where('company_id', $company_id)->get();
+        $warehouses->Load('company');
+        return response()->json($warehouses, 200);
     }
 }

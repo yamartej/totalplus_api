@@ -194,6 +194,7 @@ class SaleController extends Controller
             'credit_note_detail' => $request->input('credit_note_detail', ''),
             'pop_id' => $request->input('pop_id', null),
             'type_of_sale' => 'credit',
+            'company_id' => $request->input('company_id', null),
         ]);
 
         return response()->json($sale, 201);
@@ -220,6 +221,34 @@ class SaleController extends Controller
             ];
         });
 
+        return response()->json($sales);
+    }
+
+    public function getCreditNoteListByCompany($id)
+    {
+        $companyId = $id;
+        $type = 'credit';
+        if (!$companyId) {
+            return response()->json(['error' => 'company_id is required'], 400);
+        }
+        $sales = Sale::with(['customer']) // Incluye detalles y cada producto
+            ->where('type_of_sale', $type)
+            ->whereHas('customer', function ($query) use ($companyId) {
+                $query->where('company_id', $companyId);
+            })
+            ->orderBy('created_at', 'desc')
+            ->get();
+        // Formatear la respuesta para incluir solo los campos necesarios
+        $sales = $sales->map(function ($sale) {
+            return [
+                'sale_id' => $sale->id,
+                'customer_id' => $sale->customer_id,
+                'customer_name' => $sale->customer ? $sale->customer->name : null,
+                'total_amount' => $sale->total_amount,
+                'credit_note_date' => $sale->credit_note_date,
+                'credit_note_detail' => $sale->credit_note_detail,
+            ];
+        });
         return response()->json($sales);
     }
 }

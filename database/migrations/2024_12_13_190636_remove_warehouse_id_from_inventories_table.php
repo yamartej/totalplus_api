@@ -1,23 +1,33 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 
 class RemoveWarehouseIdFromInventoriesTable extends Migration
 {
+    /**
+     * Migración histórica neutralizada.
+     *
+     * La tabla `inventories` fue creada originalmente sin `warehouse_id`
+     * (2023_08_03_220522_create_inventories_table.php).
+     *
+     * Por lo tanto, esta migración no puede eliminar una columna ni una
+     * clave foránea que todavía no existen durante una reconstrucción limpia.
+     *
+     * La migración siguiente:
+     * 2024_12_13_190801_add_warehouse_id_to_inventories_table.php
+     * es la responsable de crear `warehouse_id`.
+     */
     public function up()
     {
-        Schema::table('inventories', function (Blueprint $table) {
-            $table->dropForeign(['warehouse_id']);
-            $table->dropColumn('warehouse_id');
-        });
+        //
     }
 
+    /**
+     * No debe recrearse warehouse_id aquí.
+     * Su ciclo de vida pertenece a la migración que lo agrega después.
+     */
     public function down()
     {
-        Schema::table('inventories', function (Blueprint $table) {
-            $table->foreignId('warehouse_id')->constrained()->onDelete('cascade');
-        });
+        //
     }
 }

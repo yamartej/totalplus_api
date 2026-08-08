@@ -1,34 +1,30 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 
 class AddCompanyIdToUsersTable extends Migration
 {
     /**
-     * Run the migrations.
+     * Esta migración se conserva por compatibilidad con el historial.
      *
-     * @return void
+     * `company_id` ya fue creado en:
+     * 2024_11_20_194654_create_companies_table.php
+     *
+     * Por lo tanto, esta migración debe ser un no-op para permitir
+     * reconstruir una base de datos limpia sin intentar crear la
+     * misma columna dos veces.
      */
     public function up()
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->unsignedBigInteger('company_id')->nullable(); // Relación con la tabla empresas
-            $table->foreign('company_id')->references('id')->on('companies')->onDelete('set null'); // Llave foránea
-        });
+        //
     }
 
     /**
-     * Reverse the migrations.
-     *
-     * @return void
+     * No se elimina `company_id` aquí porque la columna pertenece
+     * a la migración anterior que crea la tabla `companies`.
      */
     public function down()
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropForeign(['company_id']);
-            $table->dropColumn('company_id');
-        });
+        //
     }
 }

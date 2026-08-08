@@ -154,6 +154,8 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::delete('/pops/{id}', [PointOfSaleController::class, 'destroy']);
 
     // Rutas para Ventas
+    Route::get('/sales-by-company/{id}', [SaleController::class, 'getSalesByCompany']);
+    Route::get('/sales/credit-type-by-customer-by-company/{id}', [SaleController::class, 'getCreditByCustomersByCompany']);
     Route::get('/sales/credit-note-list-by-company/{id}', [SaleController::class, 'getCreditNoteListByCompany']);
     Route::get('/sales/credit-note-list', [SaleController::class, 'getCreditNoteList']);
     Route::post('/sales/credit-customer-register', [SaleController::class, 'creditCustomerRegister']);
@@ -190,6 +192,7 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::delete('/credit-details/{id}', [CreditDetailController::class, 'destroy']);
 
     // Rutas para Detalle de Pagos por cliente
+    Route::get('/credit-customer-details-by-company/{id}', [CreditCustomerDetailController::class, 'creditCustomerDetailsByCompany']);
     Route::get('/credit-customer-details/payments-by-date', [CreditCustomerDetailController::class, 'paymentByDate']);
     Route::get('/credit-customer-details', [CreditCustomerDetailController::class, 'index']);
     Route::post('/credit-customer-details', [CreditCustomerDetailController::class, 'store']);

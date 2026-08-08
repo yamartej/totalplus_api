@@ -111,4 +111,21 @@ class CreditCustomerDetailController extends Controller
         $creditDetails = $query->get();
         return response()->json($creditDetails);
     }
+
+    public function creditCustomerDetailsByCompany($id)
+    {
+        $companyId = $id;
+
+        if (!$companyId) {
+            return response()->json(['message' => 'Company-ID header is required'], 400);
+        }
+
+        $creditDetails = CreditCustomerDetail::whereHas(
+            'customer',
+            function ($query) use ($companyId) {
+                $query->where('company_id', $companyId);
+            }
+        )->with('customer')->get();
+        return response()->json($creditDetails);
+    }
 }

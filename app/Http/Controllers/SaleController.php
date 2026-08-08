@@ -251,4 +251,61 @@ class SaleController extends Controller
         });
         return response()->json($sales);
     }
+
+    public function getCreditByCustomersByCompany($id)
+    {
+        $companyId = $id;
+        if (!$companyId) {
+            return response()->json(['error' => 'company_id is required'], 400);
+        }
+        // Obtener la suma total de ventas tipo "credit" agrupadas por cliente
+        $credits = DB::table('sales')
+            ->select('customer_id', DB::raw('SUM(total_amount) as total_debt'))
+            ->where('type_of_sale', 'credit')
+            ->whereIn('customer_id', function ($query) use ($companyId) {
+                $query->select('id')
+                    ->from('customers')
+                    ->where('company_id', $companyId);
+            })
+            ->groupBy('customer_id')
+            ->get();
+
+        // Incluir información del cliente y sus pagos
+        $result = $credits->map(function ($item) {
+            $customer = \App\Models\Customer::find($item->customer_id);
+
+            // Obtener los pagos del cliente desde credit_customer_details
+            $payments = DB::table('credit_customer_details')
+                ->where('customer_id', $item->customer_id)
+                ->get();
+
+            return [
+                'customer_id' => $item->customer_id,
+                'customer_name' => $customer ? $customer->name : null,
+                'total_debt' => $item->total_debt,
+                'payments' => $payments,
+            ];
+        });
+
+        return response()->json($result);
+    }
+
+    public function getSalesByCompany($id)
+    {
+        $companyId = $id;
+
+        if (!$companyId) {
+            return response()->json(['message' => 'Company-ID header is required'], 400);
+        }
+
+        $sales = Sale::whereHas(
+            'customer',
+            function ($query) use ($companyId) {
+                $query->where('company_id', $companyId);
+            }
+        )->with(['customer', 'details.product.inventory', 'paymentDetails']) // Incluye detalles y cada producto
+            ->orderBy('created_at', 'desc')
+            ->get();
+        return response()->json($sales);
+    }
 }

@@ -16,21 +16,26 @@ use App\Http\Controllers\RolesController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\RolePermissionController;
+use App\Http\Controllers\CompanyController;
+use App\Http\Controllers\PointOfSaleController;
+use App\Http\Controllers\PointOfSaleStatusController;
 use App\Http\Controllers\TokenVerificationController;
-
+use App\Http\Controllers\BatchController;
+use App\Http\Controllers\CostController;
+use App\Http\Controllers\CreditDetailController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
-use App\Models\Sale;
-use App\Models\Supplier;
+use App\Http\Controllers\CreditCustomerDetail;
+use App\Http\Controllers\CreditCustomerDetailController;
+use App\Http\Controllers\SaleDetailController;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
-
-
-
-
+use App\Models\User;
+use App\Notifications\CustomVerifyEmail;
 
 /*
 |--------------------------------------------------------------------------
@@ -46,16 +51,24 @@ use Illuminate\Support\Facades\Route;
 // Ruta de login
 Route::post('/login', [LoginController::class, 'login']);
 
+// Ruta de login with provider
+Route::post('/login-provider', [LoginController::class, 'loginWithProvider']);
+
 // Ruta de registro de usuario
 Route::post('/register', [RegisterController::class, 'register']);
 
 // Ruta de verificación de correo
 Route::post('/check-email', [AuthController::class, 'checkEmail']);
 
+Route::get('/companies', [CompanyController::class, 'index']);
+
 Route::middleware('auth:sanctum',)->group(function () {
     // Rutas protegidas aquí
 
     // Ruta de users
+
+    Route::get('/users/by-role', [UserController::class, 'getUsersByRole']);
+    Route::get('/users/getUsersByCompany/{id}', [UserController::class, 'getUsersByCompany']);
     Route::get('/users', [UserController::class, 'index']);
     Route::post('/users', [UserController::class, 'store']);
     Route::get('/users/{id}', [UserController::class, 'show']);
@@ -67,16 +80,23 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::get('/verify-token', [VerificationController::class, 'verifyToken']);
     Route::get('/refresh-token', [VerificationController::class, 'refreshToken']);
 
-
-
     // Rutas para productos
+
+    Route::put('/products/update-final-cost', [ProductController::class, 'updateFinalCostProduct']);
+    Route::get('/products/available', [ProductController::class, 'getAvailableProducts']);
+    Route::put('/products/update-batch', [ProductController::class, 'updateBatchForProducts']);
+    Route::get('/products/with-batch-and-status', [ProductController::class, 'getProductsWithBatchAndStatus']);
+    Route::get('/products/with-costs', [ProductController::class, 'getProductsWithCosts']);
     Route::get('/products', [ProductController::class, 'index']);
     Route::post('/products', [ProductController::class, 'create']);
     Route::get('/products/{id}', [ProductController::class, 'get']);
     Route::put('/products/{id}', [ProductController::class, 'update']);
     Route::delete('/products/{id}', [ProductController::class, 'delete']);
 
+
     // Rutas para inventario
+    Route::post('/inventory/saveInventoryProducts', [InventoryController::class, 'saveInventoryProducts']);
+    Route::post('/inventory/removeAssignedInventory', [InventoryController::class, 'removeAssignedInventory']);
     Route::get('/inventory', [InventoryController::class, 'index']);
     Route::post('/inventory', [InventoryController::class, 'create']);
     Route::get('/inventory/{id}', [InventoryController::class, 'get']);
@@ -85,21 +105,131 @@ Route::middleware('auth:sanctum',)->group(function () {
 
     // Rutas Menu
     Route::get('/menus', [MenuController::class, 'index']);
+    Route::post('/menu_items', [MenuController::class, 'getMenuByRoles']);
 
+    // Rutas para Roles
+    Route::get('/roles', [RolesController::class, 'index']);
+    Route::post('/roles', [RolesController::class, 'store']);
+    Route::put('/roles/{id}', [RolesController::class, 'put']);
+    Route::get('/roles/{id}', [RolesController::class, 'show']);
+    Route::delete('/roles/{id}', [RolesController::class, 'destroy']);
+
+    // Rutas para Persimos de roles
+    Route::get('/permissions', [RolePermissionController::class, 'index']);
+    Route::post('/permissions', [RolePermissionController::class, 'update']);
+
+    // Rutas para Roles
+    // Rutas para Agregar Categorias de los productos
+    Route::get('/categories', [CategoryController::class, 'index']);
+    Route::post('/categories', [CategoryController::class, 'store']);
+    Route::put('/categories/{id}', [CategoryController::class, 'put']);
+    Route::get('/categories/{id}', [CategoryController::class, 'show']);
+    Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
+
+    // Rutas para cliente
+    Route::get('/customers/with-credits-and-payments', [CustomerController::class, 'getCustomersWithCreditsAndPayments']);
+    Route::get('/customers/get-customers-by-company/{id}', [CustomerController::class, 'getCustomersByCompany']);
+    Route::get('/customers', [CustomerController::class, 'index']);
+    Route::post('/customers', [CustomerController::class, 'store']);
+    Route::get('/customers/{id}', [CustomerController::class, 'show']);
+    Route::put('/customers/{id}', [CustomerController::class, 'update']);
+    Route::delete('/customers/{id}', [CustomerController::class, 'delete']);
+
+    // Rutas para Agregar Almacenes de los productos
+
+    Route::get('/warehouses/get-by-company/{company_id}', [WarehouseController::class, 'getByCompany']);
+    Route::get('/warehouses', [WarehouseController::class, 'index']);
+    Route::post('/warehouses', [WarehouseController::class, 'store']);
+    Route::put('/warehouses/{id}', [WarehouseController::class, 'put']);
+    Route::get('/warehouses/{id}', [WarehouseController::class, 'show']);
+    Route::delete('/warehouses/{id}', [WarehouseController::class, 'destroy']);
+
+    // Rutas para Puntos de Ventas
+    Route::get('/pops/seller/{seller_id}', [PointOfSaleController::class, 'getBySellerId']);
+    Route::get('/pops/by-company/{company_id}', [PointOfSaleController::class, 'getByCompanyId']);
+    Route::get('/pops', [PointOfSaleController::class, 'index']);
+    Route::post('/pops', [PointOfSaleController::class, 'store']);
+    Route::get('/pops/{id}', [PointOfSaleController::class, 'show']);
+    Route::put('/pops/{id}', [PointOfSaleController::class, 'update']);
+    Route::delete('/pops/{id}', [PointOfSaleController::class, 'destroy']);
+
+    // Rutas para Ventas
+    Route::get('/sales-by-company/{id}', [SaleController::class, 'getSalesByCompany']);
+    Route::get('/sales/credit-type-by-customer-by-company/{id}', [SaleController::class, 'getCreditByCustomersByCompany']);
+    Route::get('/sales/credit-note-list-by-company/{id}', [SaleController::class, 'getCreditNoteListByCompany']);
+    Route::get('/sales/credit-note-list', [SaleController::class, 'getCreditNoteList']);
+    Route::post('/sales/credit-customer-register', [SaleController::class, 'creditCustomerRegister']);
+    Route::get('/sales/credit-type-by-customer', [SaleController::class, 'getCreditByCustomers']);
+    Route::get('/sales/sales-by-credit-type', [SaleController::class, 'getSalesByCreditType']);
+    Route::get('/sales', [SaleController::class, 'index']);
+    Route::post('/sales', [SaleController::class, 'store']);
+    Route::post('/sales/{id}', [SaleController::class, 'destroy']);
+
+    Route::put('/sales/detail/{id}', [SaleDetailController::class, 'update']);
+    Route::delete('/sales/detail/{id}', [SaleDetailController::class, 'destroy']);
+
+
+    // Rutas para Lotes
+
+    Route::get('/batches/get-batches-with-products', [BatchController::class, 'getBatchesWithProducts']);
+    Route::get('/batches/getBatchesReceived', [BatchController::class, 'getBatchesReceived']);
+    Route::get('/batches', [BatchController::class, 'index']);
+    Route::post('/batches', [BatchController::class, 'store']);
+    Route::put('/batches/{id}', [BatchController::class, 'update']);
+    Route::get('/batches/{id}', [BatchController::class, 'show']);
+    Route::delete('/batches/{id}', [BatchController::class, 'destroy']);
+
+    // Rutas para Costos
+    Route::get('/costs', [CostController::class, 'index']);
+    Route::post('/costs', [CostController::class, 'store']);
+    Route::put('/costs/{id}', [CostController::class, 'update']);
+    Route::get('/costs/{id}', [CostController::class, 'show']);
+    Route::delete('/costs/{id}', [CostController::class, 'destroy']);
+
+    // Rutas para Detalle de Pagos por factura
+    Route::get('/credit-details', [CreditDetailController::class, 'index']);
+    Route::post('/credit-details', [CreditDetailController::class, 'store']);
+    Route::delete('/credit-details/{id}', [CreditDetailController::class, 'destroy']);
+
+    // Rutas para Detalle de Pagos por cliente
+    Route::get('/credit-customer-details-by-company/{id}', [CreditCustomerDetailController::class, 'creditCustomerDetailsByCompany']);
+    Route::get('/credit-customer-details/payments-by-date', [CreditCustomerDetailController::class, 'paymentByDate']);
+    Route::get('/credit-customer-details', [CreditCustomerDetailController::class, 'index']);
+    Route::post('/credit-customer-details', [CreditCustomerDetailController::class, 'store']);
+    Route::delete('/credit-customer-details/{id}', [CreditCustomerDetailController::class, 'destroy']);
+
+    Route::post('/email/verification-notification', function (Request $request) {
+        $user = $request->user();
+
+        //$user->sendEmailVerificationNotification();
+        $user->notify(new CustomVerifyEmail);
+
+        return response()->json(['message' => 'Correo de verificación reenviado']);
+    });
 
     // Agrega las demás rutas protegidas aquí
 });
-Route::get('/email/verify/{id}/{hash}', function (EmailVerificationRequest $request) {
-    $request->fulfill();
+Route::get('/email/verify/{id}/{hash}', function ($id, $hash) {
+    $user = User::findOrFail($id);
+    if (! hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
+        return response()->json(['message' => 'Invalid verification link'], 403);
+    }
 
-    return response()->json(['message' => 'Email verified successfully.']);
-})->middleware(['auth', 'signed'])->name('verification.verify');
+    if ($user->hasVerifiedEmail()) {
+        //return response()->json(['message' => 'Email already verified']);
+        return redirect(env('FRONTEND_URL') . '/verify-success');
+    }
 
-Route::post('/email/verification-notification', function (Request $request) {
+    $user->markEmailAsVerified();
+
+    return redirect(env('FRONTEND_URL') . '/verify-email');
+})->middleware(['signed'])->name('verification.verify');
+
+/*Route::post('/email/verification-notification', function (Request $request) {
     $request->user()->sendEmailVerificationNotification();
 
     return response()->json(['message' => 'Verification link sent!']);
-})->middleware(['auth', 'throttle:6,1'])->name('verification.send');
+})->middleware(['auth', 'throttle:6,1'])->name('verification.send');*/
 
 
 /*Route::get('/email/verify/{id}/{hash}', function (Request $request, $id, $hash) {
@@ -131,20 +261,6 @@ Route::post('/email/verification-notification', function (Request $request) {
 
     return back()->with('message', 'Verification link sent!');
 })->middleware(['auth', 'throttle:6,1'])->name('verification.send');*/
-
-// Rutas para Agregar Categorias de los productos
-Route::get('/categories', [CategoryController::class, 'index']);
-Route::post('/categories', [CategoryController::class, 'store']);
-Route::put('/categories/{id}', [CategoryController::class, 'put']);
-Route::get('/categories/{id}', [CategoryController::class, 'show']);
-Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
-
-// Rutas para cliente
-Route::get('/customers', [CustomerController::class, 'index']);
-Route::post('/customers', [CustomerController::class, 'store']);
-Route::get('/customers/{id}', [CustomerController::class, 'show']);
-Route::put('/customers/{id}', [CustomerController::class, 'update']);
-Route::delete('/customers/{id}', [CustomerController::class, 'delete']);
 
 // Rutas para Venta
 Route::get('/sales', [SaleController::class, 'index']);
@@ -179,25 +295,9 @@ Route::put('/purchaseorderproducts/{id}', [PurchaseOrderProductController::class
 Route::get('/purchaseorderproducts/{id}', [PurchaseOrderProductController::class, 'show']);
 Route::delete('/purchaseorderproducts/{id}', [PurchaseOrderProductController::class, 'destroy']);
 
-
-
-// Rutas para Agregar Almacenes de los productos
-Route::get('/warehouses', [WarehouseController::class, 'index']);
-Route::post('/warehouses', [WarehouseController::class, 'store']);
-Route::put('/warehouses/{id}', [WarehouseController::class, 'put']);
-Route::get('/warehouses/{id}', [WarehouseController::class, 'show']);
-Route::delete('/warehouses/{id}', [WarehouseController::class, 'destroy']);
-
 // Rutas para Agregar Cajas registradoras de los productos
 Route::get('/cashregisters', [CashRegisterController::class, 'index']);
 Route::post('/cashregisters', [CashRegisterController::class, 'store']);
 Route::put('/cashregisters/{id}', [CashRegisterController::class, 'put']);
 Route::get('/cashregisters/{id}', [CashRegisterController::class, 'show']);
 Route::delete('/cashregisters/{id}', [CashRegisterController::class, 'destroy']);
-
-// Rutas para Roles
-Route::get('/roles', [RolesController::class, 'index']);
-Route::post('/roles', [RolesController::class, 'store']);
-Route::put('/roles/{id}', [RolesController::class, 'put']);
-Route::get('/roles/{id}', [RolesController::class, 'show']);
-Route::delete('/roles/{id}', [RolesController::class, 'destroy']);

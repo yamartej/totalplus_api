@@ -9,16 +9,36 @@ class Sale extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['customer_id', 'product_id', 'quantity'];
+    protected $fillable = [
+        'customer_id',
+        'seller_id',
+        'pop_id',
+        'total_amount',
+        'type_of_sale',
+        'credit_note_date',
+        'credit_note_detail',
+        'company_id',
+    ];
 
     public function customer()
     {
         return $this->belongsTo(Customer::class);
     }
-
-    public function product()
+    public function seller()
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(User::class);
     }
-    
+    public function pop()
+    {
+        return $this->belongsTo(PointOfSale::class);
+    }
+    public function details()
+    {
+        return $this->hasMany(SaleDetail::class);
+    }
+
+    public function paymentDetails()
+    {
+        return $this->hasMany(CreditDetail::class);
+    }
 }

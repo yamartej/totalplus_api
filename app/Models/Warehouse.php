@@ -11,17 +11,25 @@ class Warehouse extends Model
 
     protected $table = 'warehouses';
 
-    protected $fillable = ['name', 'description', 'address'];
+    protected $fillable = ['name', 'description', 'address', 'company_id'];
 
     public function products()
     {
-        return $this->belongsToMany(Product::class, 'product_warehouse')
-                    ->withPivot('quantity')
-                    ->withTimestamps();
+        return $this->belongsToMany(Product::class)->withPivot('quantity')->withTimestamps();
     }
 
     public function cashRegisters()
     {
         return $this->hasMany(CashRegister::class);
+    }
+
+    public function inventories()
+    {
+        return $this->hasMany(Inventory::class);
+    }
+
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
     }
 }

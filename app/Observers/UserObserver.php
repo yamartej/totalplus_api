@@ -15,6 +15,6 @@ class UserObserver
      */
     public function created(User $user)
     {
-        $user->notify(new CustomVerifyEmail);
+        //$user->notify(new CustomVerifyEmail);
     }
 }

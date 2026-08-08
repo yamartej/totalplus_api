@@ -1,9 +1,11 @@
 <?php
 
+// app/Http/Controllers/MenuController.php
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Menu;
+use App\Models\RolePermission;
 
 class MenuController extends Controller
 {
@@ -19,47 +21,30 @@ class MenuController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Get the menu items accessible by the user's roles.
      *
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    public function store(Request $request)
+    public function getMenuByRoles(Request $request)
     {
-        //
+        $roleIds = $request->input('role_ids'); // Asumiendo que los roles se pasan como un array de IDs
+
+        if (is_null($roleIds) || !is_array($roleIds) || empty($roleIds)) {
+            return response()->json(['error' => 'Invalid role_ids parameter'], 400);
+        }
+
+        // Obtener los permisos de rol
+        $permissions = RolePermission::whereIn('role_id', $roleIds)
+            ->where('can_access', true)
+            ->pluck('menu_id')
+            ->unique();
+
+        // Obtener los ítems del menú accesibles
+        $menuItems = Menu::whereIn('id', $permissions)->get();
+
+        return response()->json($menuItems);
     }
 
-    /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function update(Request $request, $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy($id)
-    {
-        //
-    }
+    // Otros métodos...
 }

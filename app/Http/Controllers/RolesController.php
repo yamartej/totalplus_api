@@ -11,7 +11,9 @@ class RolesController extends Controller
     public function index()
     {
         $roles = Roles::all();
-        return RolesResource::collection($roles);
+
+        //return RolesResource::collection($roles);
+        return  response()->json($roles);
     }
 
     public function store(Request $request)

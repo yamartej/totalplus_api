@@ -59,14 +59,6 @@ class LoginController extends Controller
 
         if (Auth::guard('web')->attempt($credentials)) {
             $user = Auth::guard('web')->user();
-            //Este metodo es el que ejecuta la verificación del usuario.
-            $user->markEmailAsVerified();
-            if (!$user->hasVerifiedEmail()) {
-                throw ValidationException::withMessages([
-                    'email' => ['Tu correo electrónico no ha sido verificado. Por favor, verifica tu correo electrónico e intenta nuevamente.'],
-                ]);
-            }
-
             // Autenticación exitosa, generar token de autenticación con Sanctum
             $roles = $user->roles()->get();
             $token = $user->createToken('my-token-name')->plainTextToken;
@@ -89,5 +81,26 @@ class LoginController extends Controller
         $request->user()->tokens()->delete();
 
         return response()->json(['message' => 'Logged out']);
+    }
+
+    public function loginWithProvider(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email'
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        // Generar token de autenticación con Sanctum
+        $roles = $user->roles()->get();
+        $token = $user->createToken('my-token-name')->plainTextToken;
+        $expiration = now()->addMinutes(config('sanctum.expiration'));
+
+        return response()->json([
+            'token' => $token,
+            'user' => $user,
+            'expiration' => $expiration,
+            'roles' => $roles,
+        ]);
     }
 }

@@ -4,6 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use App\Models\Company;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 
 class UserController extends Controller
@@ -15,7 +19,7 @@ class UserController extends Controller
      */
     public function index()
     {
-        $users = User::with('roles')->get();
+        $users = User::with(['roles', 'company'])->get();
         return response()->json($users);
     }
 
@@ -32,13 +36,40 @@ class UserController extends Controller
             'email' => 'required|email'
         ]);
 
+        // Buscar o crear la empresa
+        if ($request->input('company')) {
+            $company = Company::create(['name' => $request->input('company')]);
+            $company_id = $company->id;
+        } else {
+            $company_id = $request->input('companyName');
+        }
+
+
         $user = User::create([
             'name' => $request->input('name'),
             'email' => $request->input('email'),
-            'password' => '123456789'
+            'password' => Hash::make($request->input('password')),
+            'company_id' => $company_id,
         ]);
 
+        $user->roles()->attach($request->input('rol'));
+
         return response()->json($user, 201);
+    }
+
+    public function getUsersByRole()
+    {
+        $roleIds = [8, 9, 10, 16]; // IDs de roles predefinidos
+
+        $users = User::whereHas('roles', function ($query) use ($roleIds) {
+            $query->whereIn('roles.id', $roleIds); // Asegúrate de usar la columna correcta
+        })->get();
+
+        if ($users->isEmpty()) {
+            return response()->json(['message' => 'Usuario no encontrado'], 404);
+        }
+
+        return response()->json($users, 200);
     }
 
     /**
@@ -79,7 +110,12 @@ class UserController extends Controller
 
         $user->update([
             'name' => $request->input('name'),
+            //'company_id' => $company_id,
+            'email' => $request->input('email'),
+            'rol_id' => $request->input('rol')
         ]);
+
+        $user->roles()->sync($request->input('rol'));
 
         // Responder con el inventario actualizado y el código de estado 200 (OK)
         return response()->json($user, 200);
@@ -98,10 +134,25 @@ class UserController extends Controller
             return response()->json(['message' => 'Usuario no encontrado'], 404);
         }
 
-        // Eliminar el producto de la base de datos
+        // Verificar si el usuario tiene dependencias en point_of_sales
+        $hasDependencies = DB::table('point_of_sales')->where('seller_id', $id)->exists();
+        if ($hasDependencies) {
+            return response()->json(['message' => 'No se puede eliminar el usuario porque tiene dependencias en Punto de Ventas'], 400);
+        }
+
+        // Eliminar el usuario
         $user->delete();
 
-        // Responder con el código de estado 204 (Sin contenido) ya que no hay respuesta para eliminar
         return response()->json(null, 204);
+    }
+
+    public function getUsersByCompany($companyId)
+    {
+        $users = User::where('company_id', $companyId)->with(['roles', 'company'])->get();
+        if ($users->isEmpty()) {
+            return response()->json(['message' => 'No se encontraron usuarios para la empresa especificada'], 404);
+        }
+
+        return response()->json($users, 200);
     }
 }

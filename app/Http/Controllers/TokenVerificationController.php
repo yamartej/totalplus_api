@@ -27,9 +27,10 @@ class TokenVerificationController extends Controller
 
         if ($user) {
             // Llama a la función para generar un nuevo token
+            file_put_contents("jairo.txt",  "response=" . print_r($user, true) . "\n", FILE_APPEND);
             return $this->generateToken($user);
         }
-
+        file_put_contents("jairo1.txt",  "response=" . print_r($user, true) . "\n", FILE_APPEND);
         return response()->json(['message' => 'Unauthenticated'], Response::HTTP_UNAUTHORIZED);
     }
 

@@ -10,8 +10,9 @@ class WarehouseController extends Controller
 {
     public function index()
     {
-        $warehouses = Warehouse::all();
-        return WarehouseResource::collection($warehouses);
+        $warehouses = Warehouse::with(['company'])->get();
+        //return WarehouseResource::collection($warehouses);
+        return response()->json($warehouses);
     }
 
     public function store(Request $request)
@@ -21,26 +22,52 @@ class WarehouseController extends Controller
             'address' => 'required|string|max:255',
         ]);
 
-        $warehouse = Warehouse::create($data);
+        $warehouse = Warehouse::create([
+            'name' => $request->input('name'),
+            'description' => $request->input('description'),
+            'address' => $request->input('address'),
+            'company_id' => $request->input('company_id'),
+        ]);
+        $warehouse->load('company');
 
-        return new WarehouseResource($warehouse);
+        //return new WarehouseResource($warehouse);
+        return response()->json($warehouse, 201);
     }
 
-    public function show(Warehouse $warehouse)
+    public function show($id)
     {
-        return new WarehouseResource($warehouse);
+        // Buscar el cliente por su ID en la base de datos
+        $warehouse = Warehouse::find($id);
+
+        // Si el almacen no existe, responder con el código de estado 404 (No encontrado)
+        if (!$warehouse) {
+            return response()->json(['message' => 'Alamacen no encontrado'], 404);
+        }
+
+        // Responder con el cliente y el código de estado 200 (OK)
+        return response()->json($warehouse, 200);
     }
 
-    public function put(Request $request, Warehouse $warehouse)
+    public function put(Request $request, $id)
     {
+        $warehouse = Warehouse::find($id);
+
+        if (!$warehouse) {
+            return response()->json(['message' => 'Alamacen no encontrado'], 404);
+        }
+
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'address' => 'required|string|max:255',
         ]);
 
-        $warehouse->update($data);
+        $warehouse->update([
+            'name' => $request->input('name'),
+            'description' => $request->input('description'),
+            'address' => $request->input('address'),
+        ]);
 
-        return new WarehouseResource($warehouse);
+        return response()->json($warehouse, 200);
     }
 
     public function destroy($id)
@@ -48,11 +75,18 @@ class WarehouseController extends Controller
         $warehouse = Warehouse::find($id);
 
         if (!$warehouse) {
-            return response()->json(['message' => 'Proveedor no encontrado'], 404);
+            return response()->json(['message' => 'Alamacen no encontrado'], 404);
         }
 
         $warehouse->delete();
 
         return response()->json(null, 204);
+    }
+
+    public function getByCompany($company_id)
+    {
+        $warehouses = Warehouse::where('company_id', $company_id)->get();
+        $warehouses->Load('company');
+        return response()->json($warehouses, 200);
     }
 }

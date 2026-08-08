@@ -65,7 +65,8 @@ class VerificationController extends Controller
 
         if ($user) {
             // Llama a la función para generar un nuevo token
-            return $this->generateToken($user);
+            $token = $this->generateToken($user);
+            return $token;
         }
 
         return response()->json(['message' => 'Unauthenticated'], Response::HTTP_UNAUTHORIZED);

@@ -4,7 +4,9 @@ namespace Tests\Feature\Reengineering;
 
 use App\Models\Company;
 use App\Models\Inventory;
+use App\Models\Permission;
 use App\Models\Product;
+use App\Models\Roles;
 use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -14,8 +16,35 @@ class InventoryBaselineTest extends TestCase
 {
     use RefreshDatabase;
 
+    private function grantApiPermissions(User $user, array $permissionNames): void
+    {
+        $role = Roles::firstOrCreate(
+            ['name' => 'Phase 0 Inventory Baseline'],
+            ['description' => 'Test-only role for Phase 0 inventory characterization']
+        );
+
+        $permissionIds = collect($permissionNames)
+            ->map(function (string $name) {
+                return Permission::firstOrCreate(
+                    ['name' => $name],
+                    ['description' => 'Phase 0 characterization permission']
+                )->id;
+            })
+            ->all();
+
+        $role->permissions()->syncWithoutDetaching($permissionIds);
+        $user->roles()->syncWithoutDetaching([$role->id]);
+    }
+
     private function authHeaders(User $user): array
     {
+        $this->grantApiPermissions($user, [
+            'inventory.view',
+            'inventory.create',
+            'inventory.update',
+            'inventory.delete',
+        ]);
+
         return [
             'Authorization' => 'Bearer ' . $user->createToken('phase-0-test')->plainTextToken,
         ];

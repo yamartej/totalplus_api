@@ -5,8 +5,10 @@ namespace Tests\Feature\Reengineering;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Inventory;
+use App\Models\Permission;
 use App\Models\PointOfSale;
 use App\Models\Product;
+use App\Models\Roles;
 use App\Models\Sale;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -91,8 +93,35 @@ class SaleBaselineTest extends TestCase
         );
     }
 
+    private function grantApiPermissions(User $user, array $permissionNames): void
+    {
+        $role = Roles::firstOrCreate(
+            ['name' => 'Phase 0 Sales Baseline'],
+            ['description' => 'Test-only role for Phase 0 sales characterization']
+        );
+
+        $permissionIds = collect($permissionNames)
+            ->map(function (string $name) {
+                return Permission::firstOrCreate(
+                    ['name' => $name],
+                    ['description' => 'Phase 0 characterization permission']
+                )->id;
+            })
+            ->all();
+
+        $role->permissions()->syncWithoutDetaching($permissionIds);
+        $user->roles()->syncWithoutDetaching([$role->id]);
+    }
+
     private function authHeaders(User $user): array
     {
+        $this->grantApiPermissions($user, [
+            'sales.view',
+            'sales.create',
+            'sales.update',
+            'sales.delete',
+        ]);
+
         return [
             'Authorization' => 'Bearer ' . $user->createToken('phase-0-test')->plainTextToken,
         ];

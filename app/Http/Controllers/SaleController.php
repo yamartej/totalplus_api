@@ -2,32 +2,128 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Customer;
-use App\Models\Sale;
-use App\Models\SalesHistory;
 use App\Models\Inventory;
-use App\Models\Product;
+use App\Models\PointOfSale;
+use App\Models\Sale;
 use App\Models\SaleDetail;
+use App\Models\User;
+use App\Services\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Http\Response;
 
 class SaleController extends Controller
 {
-    public function index()
+    private function requestedCompanyId(Request $request)
     {
-        $sales = Sale::with(['customer', 'details.product.inventory', 'paymentDetails']) // Incluye detalles y cada producto
-            ->orderBy('created_at', 'desc')
-            ->get();
-        return response()->json($sales);
+        if ($request->has('company_id')) {
+            return $request->input('company_id');
+        }
+
+        return $request->query('company_id');
     }
 
-    public function store(Request $request)
+    private function scopeSales(
+        Builder $query,
+        Request $request,
+        TenantContext $tenant,
+        $requestedCompanyId = null
+    ): array {
+        if ($requestedCompanyId === null) {
+            $requestedCompanyId = $this->requestedCompanyId($request);
+        }
+
+        $companyId = $tenant->resolveCompanyId(
+            $request->user(),
+            $requestedCompanyId
+        );
+
+        if ($companyId !== null) {
+            $query->where(function (Builder $saleQuery) use ($companyId) {
+                $saleQuery
+                    ->where('sales.company_id', $companyId)
+                    ->orWhere(function (Builder $legacy) use ($companyId) {
+                        $legacy
+                            ->whereNull('sales.company_id')
+                            ->whereHas(
+                                'customer',
+                                function (Builder $customer) use ($companyId) {
+                                    $customer->where(
+                                        'company_id',
+                                        $companyId
+                                    );
+                                }
+                            );
+                    });
+            });
+        }
+
+        return [$query, $companyId];
+    }
+
+    private function customerForCompany(
+        int $customerId,
+        int $companyId
+    ): ?Customer {
+        return Customer::where('id', $customerId)
+            ->where('company_id', $companyId)
+            ->first();
+    }
+
+    private function sellerForCompany(
+        int $sellerId,
+        int $companyId
+    ): ?User {
+        return User::where('id', $sellerId)
+            ->where('company_id', $companyId)
+            ->first();
+    }
+
+    private function popForCompany(
+        int $popId,
+        int $companyId
+    ): ?PointOfSale {
+        return PointOfSale::where('id', $popId)
+            ->where('company_id', $companyId)
+            ->first();
+    }
+
+    private function inventoryForCompany(
+        int $productId,
+        int $companyId
+    ): ?Inventory {
+        return Inventory::where('product_id', $productId)
+            ->whereHas(
+                'warehouse',
+                function (Builder $warehouse) use ($companyId) {
+                    $warehouse->where('company_id', $companyId);
+                }
+            )
+            ->first();
+    }
+
+    public function index(Request $request, TenantContext $tenant)
+    {
+        [$query] = $this->scopeSales(
+            Sale::with([
+                'customer',
+                'details.product.inventory',
+                'paymentDetails',
+            ])->orderBy('created_at', 'desc'),
+            $request,
+            $tenant
+        );
+
+        return response()->json($query->get());
+    }
+
+    public function store(Request $request, TenantContext $tenant)
     {
         $request->validate([
-            'client_id' => 'required|exists:customers,id',
-            'seller_id' => 'required|exists:users,id',
-            'pop_id' => 'required|exists:point_of_sales,id',
+            'client_id' => 'required|integer',
+            'seller_id' => 'required|integer',
+            'pop_id' => 'required|integer',
             'total' => 'required|numeric',
             'carts' => 'required|array',
             'carts.*.productId' => 'required|exists:products,id',
@@ -35,19 +131,71 @@ class SaleController extends Controller
             'type_of_sale' => 'required|in:normal,credit',
         ]);
 
+        $companyId = $tenant->resolveCompanyId(
+            $request->user(),
+            $request->input('company_id'),
+            true
+        );
+
+        $customer = $this->customerForCompany(
+            (int) $request->input('client_id'),
+            $companyId
+        );
+
+        if (!$customer) {
+            return response()->json([
+                'message' => 'Cliente no encontrado',
+            ], 404);
+        }
+
+        $seller = $this->sellerForCompany(
+            (int) $request->input('seller_id'),
+            $companyId
+        );
+
+        if (!$seller) {
+            return response()->json([
+                'message' => 'Vendedor no encontrado',
+            ], 404);
+        }
+
+        $pop = $this->popForCompany(
+            (int) $request->input('pop_id'),
+            $companyId
+        );
+
+        if (!$pop) {
+            return response()->json([
+                'message' => 'Punto de venta no encontrado',
+            ], 404);
+        }
+
+        foreach ($request->input('carts') as $cart) {
+            $inventory = $this->inventoryForCompany(
+                (int) $cart['productId'],
+                $companyId
+            );
+
+            if (!$inventory) {
+                return response()->json([
+                    'message' =>
+                        'Inventario del producto no disponible para la empresa activa',
+                ], 422);
+            }
+        }
+
         DB::beginTransaction();
 
         try {
-            // Crear la venta
             $sale = Sale::create([
-                'customer_id' => $request->input('client_id'),
-                'seller_id' => $request->input('seller_id'),
-                'pop_id' => $request->input('pop_id'),
+                'customer_id' => $customer->id,
+                'seller_id' => $seller->id,
+                'pop_id' => $pop->id,
                 'total_amount' => $request->input('total'),
                 'type_of_sale' => $request->input('type_of_sale'),
+                'company_id' => $companyId,
             ]);
 
-            // Crear el historial de ventas
             foreach ($request->input('carts') as $cart) {
                 SaleDetail::create([
                     'sale_id' => $sale->id,
@@ -56,9 +204,17 @@ class SaleController extends Controller
                 ]);
             }
 
-            // Actualizar el inventario
+            /*
+             * PHASE 1D ONLY:
+             * Keep the current inventory arithmetic and negative-stock
+             * behavior, but constrain the selected balance to the tenant.
+             */
             foreach ($request->input('carts') as $cart) {
-                $inventory = Inventory::where('product_id', $cart['productId'])->first();
+                $inventory = $this->inventoryForCompany(
+                    (int) $cart['productId'],
+                    $companyId
+                );
+
                 $inventory->quantity -= $cart['quantity'];
                 $inventory->save();
             }
@@ -68,59 +224,127 @@ class SaleController extends Controller
             return response()->json($sale, 201);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['error' => $e->getMessage()], 500);
+
+            return response()->json([
+                'error' => $e->getMessage(),
+            ], 500);
         }
     }
 
-    public function show($id)
-    {
-        $sale = Sale::find($id);
+    public function show(
+        $id,
+        Request $request,
+        TenantContext $tenant
+    ) {
+        [$query] = $this->scopeSales(
+            Sale::where('id', $id),
+            $request,
+            $tenant
+        );
+
+        $sale = $query->first();
 
         if (!$sale) {
-            return response()->json(['message' => 'Venta no encontrado'], 404);
+            return response()->json([
+                'message' => 'Venta no encontrado',
+            ], 404);
         }
 
         return response()->json($sale, 200);
     }
 
-    public function put(Request $request, $id)
-    {
-        $sale = Sale::find($id);
+    public function put(
+        Request $request,
+        $id,
+        TenantContext $tenant
+    ) {
+        [$query] = $this->scopeSales(
+            Sale::where('id', $id),
+            $request,
+            $tenant
+        );
+
+        $sale = $query->first();
 
         if (!$sale) {
-            return response()->json(['message' => 'Venta no encontrado'], 404);
+            return response()->json([
+                'message' => 'Venta no encontrado',
+            ], 404);
         }
 
         $sale->update([
             'total_amount' => $request->input('total_amount'),
-            'credit_note_detail' => $request->input('credit_note_detail'),
-            'credit_note_date' => $request->input('credit_note_date', now()),
+            'credit_note_detail' =>
+                $request->input('credit_note_detail'),
+            'credit_note_date' =>
+                $request->input('credit_note_date', now()),
         ]);
 
         return response()->json($sale, 200);
     }
 
-    public function destroy($id)
-    {
-        DB::beginTransaction();
-        try {
+    public function destroy(
+        $id,
+        Request $request,
+        TenantContext $tenant
+    ) {
+        [$query, $companyId] = $this->scopeSales(
+            Sale::where('id', $id),
+            $request,
+            $tenant
+        );
 
-            $sale = Sale::find($id);
-            // Verificar si tiene detalles de venta asociados
-            if ($sale && $sale->details->count() > 0) {
-                $product = Product::findOrFail($sale->details->first()->product_id);
-                $inventory = $product->inventory;
-                $inventory->quantity += $sale->details->sum('quantity'); // Devolver la cantidad al inventario
+        $sale = $query->first();
+
+        if (!$sale) {
+            return response()->json([
+                'message' => 'Venta no encontrado',
+            ], 404);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            /*
+             * Preserve the Phase 0 characterized multi-product restore bug:
+             * the sum is still restored to the first product only.
+             * The only Phase 1D change is tenant-scoping the inventory row.
+             */
+            if ($sale->details->count() > 0) {
+                $firstProductId =
+                    (int) $sale->details->first()->product_id;
+
+                if ($companyId === null) {
+                    $companyId = $sale->company_id
+                        ?? optional($sale->customer)->company_id;
+                }
+
+                $inventory = $companyId !== null
+                    ? $this->inventoryForCompany(
+                        $firstProductId,
+                        (int) $companyId
+                    )
+                    : Inventory::where(
+                        'product_id',
+                        $firstProductId
+                    )->first();
+
+                if (!$inventory) {
+                    DB::rollBack();
+
+                    return response()->json([
+                        'message' =>
+                            'Inventario del producto no disponible para la empresa activa',
+                    ], 422);
+                }
+
+                $inventory->quantity +=
+                    $sale->details->sum('quantity');
                 $inventory->save();
 
-                // Eliminar los detalles de la venta
                 foreach ($sale->details as $detail) {
                     $detail->delete();
                 }
-            }
-
-            if (!$sale) {
-                return response()->json(['message' => 'Venta no encontrado'], 404);
             }
 
             $sale->delete();
@@ -130,47 +354,61 @@ class SaleController extends Controller
             return response()->json(null, 204);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json(['error' => $e->getMessage()], 500);
+
+            return response()->json([
+                'error' => $e->getMessage(),
+            ], 500);
         }
     }
 
-    public function getSalesByCreditType()
-    {
-        // Valida que el tipo sea 'credit' o 'normal'
-        $type = 'credit';
-        if (!in_array($type, ['credit', 'normal'])) {
-            return response()->json(['error' => 'Tipo de venta inválido'], 400);
-        }
+    public function getSalesByCreditType(
+        Request $request,
+        TenantContext $tenant
+    ) {
+        [$query] = $this->scopeSales(
+            Sale::with([
+                'customer',
+                'details.product',
+                'paymentDetails',
+            ])
+                ->where('type_of_sale', 'credit')
+                ->orderBy('created_at', 'desc'),
+            $request,
+            $tenant
+        );
 
-        $sales = Sale::with(['customer', 'details.product', 'paymentDetails']) // Incluye detalles y cada producto
-            ->where('type_of_sale', $type)
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        return response()->json($sales);
+        return response()->json($query->get());
     }
 
-    public function getCreditByCustomers()
-    {
-        // Obtener la suma total de ventas tipo "credit" agrupadas por cliente
-        $credits = DB::table('sales')
-            ->select('customer_id', DB::raw('SUM(total_amount) as total_debt'))
-            ->where('type_of_sale', 'credit')
-            ->groupBy('customer_id')
-            ->get();
+    public function getCreditByCustomers(
+        Request $request,
+        TenantContext $tenant
+    ) {
+        [$query] = $this->scopeSales(
+            Sale::query()
+                ->select(
+                    'customer_id',
+                    DB::raw('SUM(total_amount) as total_debt')
+                )
+                ->where('type_of_sale', 'credit')
+                ->groupBy('customer_id'),
+            $request,
+            $tenant
+        );
 
-        // Incluir información del cliente y sus pagos
+        $credits = $query->get();
+
         $result = $credits->map(function ($item) {
-            $customer = \App\Models\Customer::find($item->customer_id);
+            $customer = Customer::find($item->customer_id);
 
-            // Obtener los pagos del cliente desde credit_customer_details
             $payments = DB::table('credit_customer_details')
                 ->where('customer_id', $item->customer_id)
                 ->get();
 
             return [
                 'customer_id' => $item->customer_id,
-                'customer_name' => $customer ? $customer->name : null,
+                'customer_name' =>
+                    $customer ? $customer->name : null,
                 'total_debt' => $item->total_debt,
                 'payments' => $payments,
             ];
@@ -178,43 +416,91 @@ class SaleController extends Controller
 
         return response()->json($result);
     }
-    public function creditCustomerRegister(Request $request)
-    {
+
+    public function creditCustomerRegister(
+        Request $request,
+        TenantContext $tenant
+    ) {
         $request->validate([
+            'customer_id' => 'required|integer',
             'amount' => 'required|numeric',
         ]);
 
-        $user = $request->user();
+        $companyId = $tenant->resolveCompanyId(
+            $request->user(),
+            $request->input('company_id'),
+            true
+        );
+
+        $customer = $this->customerForCompany(
+            (int) $request->input('customer_id'),
+            $companyId
+        );
+
+        if (!$customer) {
+            return response()->json([
+                'message' => 'Cliente no encontrado',
+            ], 404);
+        }
+
+        $popId = null;
+
+        if ($request->filled('pop_id')) {
+            $pop = $this->popForCompany(
+                (int) $request->input('pop_id'),
+                $companyId
+            );
+
+            if (!$pop) {
+                return response()->json([
+                    'message' => 'Punto de venta no encontrado',
+                ], 404);
+            }
+
+            $popId = $pop->id;
+        }
+
+        $authenticatedUser = $request->user();
+
+        $sellerId =
+            (int) $authenticatedUser->company_id === $companyId
+                ? $authenticatedUser->id
+                : null;
 
         $sale = Sale::create([
-            'customer_id' => $request->input('customer_id'),
-            'seller_id' => $user->id,
+            'customer_id' => $customer->id,
+            'seller_id' => $sellerId,
             'total_amount' => $request->input('amount'),
-            'credit_note_date' => $request->input('credit_note_date', now()),
-            'credit_note_detail' => $request->input('credit_note_detail', ''),
-            'pop_id' => $request->input('pop_id', null),
+            'credit_note_date' =>
+                $request->input('credit_note_date', now()),
+            'credit_note_detail' =>
+                $request->input('credit_note_detail', ''),
+            'pop_id' => $popId,
             'type_of_sale' => 'credit',
-            'company_id' => $request->input('company_id', null),
+            'company_id' => $companyId,
         ]);
 
         return response()->json($sale, 201);
     }
 
-    public function getCreditNoteList()
-    {
-        $type = 'credit';
+    public function getCreditNoteList(
+        Request $request,
+        TenantContext $tenant
+    ) {
+        [$query] = $this->scopeSales(
+            Sale::with(['customer'])
+                ->where('type_of_sale', 'credit')
+                ->orderBy('created_at', 'desc'),
+            $request,
+            $tenant
+        );
 
-        $sales = Sale::with(['customer']) // Incluye detalles y cada producto
-            ->where('type_of_sale', $type)
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        // Formatear la respuesta para incluir solo los campos necesarios
-        $sales = $sales->map(function ($sale) {
+        $sales = $query->get()->map(function ($sale) {
             return [
                 'sale_id' => $sale->id,
                 'customer_id' => $sale->customer_id,
-                'customer_name' => $sale->customer ? $sale->customer->name : null,
+                'customer_name' =>
+                    $sale->customer ? $sale->customer->name : null,
                 'total_amount' => $sale->total_amount,
                 'credit_note_date' => $sale->credit_note_date,
                 'credit_note_detail' => $sale->credit_note_detail,
@@ -224,64 +510,76 @@ class SaleController extends Controller
         return response()->json($sales);
     }
 
-    public function getCreditNoteListByCompany($id)
-    {
-        $companyId = $id;
-        $type = 'credit';
-        if (!$companyId) {
-            return response()->json(['error' => 'company_id is required'], 400);
-        }
-        $sales = Sale::with(['customer']) // Incluye detalles y cada producto
-            ->where('type_of_sale', $type)
-            ->whereHas('customer', function ($query) use ($companyId) {
-                $query->where('company_id', $companyId);
-            })
-            ->orderBy('created_at', 'desc')
-            ->get();
-        // Formatear la respuesta para incluir solo los campos necesarios
-        $sales = $sales->map(function ($sale) {
+    public function getCreditNoteListByCompany(
+        $id,
+        Request $request,
+        TenantContext $tenant
+    ) {
+        $companyId = $tenant->resolveCompanyId(
+            $request->user(),
+            $id
+        );
+
+        [$query] = $this->scopeSales(
+            Sale::with(['customer'])
+                ->where('type_of_sale', 'credit')
+                ->orderBy('created_at', 'desc'),
+            $request,
+            $tenant,
+            $companyId
+        );
+
+        $sales = $query->get()->map(function ($sale) {
             return [
                 'sale_id' => $sale->id,
                 'customer_id' => $sale->customer_id,
-                'customer_name' => $sale->customer ? $sale->customer->name : null,
+                'customer_name' =>
+                    $sale->customer ? $sale->customer->name : null,
                 'total_amount' => $sale->total_amount,
                 'credit_note_date' => $sale->credit_note_date,
                 'credit_note_detail' => $sale->credit_note_detail,
             ];
         });
+
         return response()->json($sales);
     }
 
-    public function getCreditByCustomersByCompany($id)
-    {
-        $companyId = $id;
-        if (!$companyId) {
-            return response()->json(['error' => 'company_id is required'], 400);
-        }
-        // Obtener la suma total de ventas tipo "credit" agrupadas por cliente
-        $credits = DB::table('sales')
-            ->select('customer_id', DB::raw('SUM(total_amount) as total_debt'))
-            ->where('type_of_sale', 'credit')
-            ->whereIn('customer_id', function ($query) use ($companyId) {
-                $query->select('id')
-                    ->from('customers')
-                    ->where('company_id', $companyId);
-            })
-            ->groupBy('customer_id')
-            ->get();
+    public function getCreditByCustomersByCompany(
+        $id,
+        Request $request,
+        TenantContext $tenant
+    ) {
+        $companyId = $tenant->resolveCompanyId(
+            $request->user(),
+            $id
+        );
 
-        // Incluir información del cliente y sus pagos
+        [$query] = $this->scopeSales(
+            Sale::query()
+                ->select(
+                    'customer_id',
+                    DB::raw('SUM(total_amount) as total_debt')
+                )
+                ->where('type_of_sale', 'credit')
+                ->groupBy('customer_id'),
+            $request,
+            $tenant,
+            $companyId
+        );
+
+        $credits = $query->get();
+
         $result = $credits->map(function ($item) {
-            $customer = \App\Models\Customer::find($item->customer_id);
+            $customer = Customer::find($item->customer_id);
 
-            // Obtener los pagos del cliente desde credit_customer_details
             $payments = DB::table('credit_customer_details')
                 ->where('customer_id', $item->customer_id)
                 ->get();
 
             return [
                 'customer_id' => $item->customer_id,
-                'customer_name' => $customer ? $customer->name : null,
+                'customer_name' =>
+                    $customer ? $customer->name : null,
                 'total_debt' => $item->total_debt,
                 'payments' => $payments,
             ];
@@ -290,22 +588,27 @@ class SaleController extends Controller
         return response()->json($result);
     }
 
-    public function getSalesByCompany($id)
-    {
-        $companyId = $id;
+    public function getSalesByCompany(
+        $id,
+        Request $request,
+        TenantContext $tenant
+    ) {
+        $companyId = $tenant->resolveCompanyId(
+            $request->user(),
+            $id
+        );
 
-        if (!$companyId) {
-            return response()->json(['message' => 'Company-ID header is required'], 400);
-        }
+        [$query] = $this->scopeSales(
+            Sale::with([
+                'customer',
+                'details.product.inventory',
+                'paymentDetails',
+            ])->orderBy('created_at', 'desc'),
+            $request,
+            $tenant,
+            $companyId
+        );
 
-        $sales = Sale::whereHas(
-            'customer',
-            function ($query) use ($companyId) {
-                $query->where('company_id', $companyId);
-            }
-        )->with(['customer', 'details.product.inventory', 'paymentDetails']) // Incluye detalles y cada producto
-            ->orderBy('created_at', 'desc')
-            ->get();
-        return response()->json($sales);
+        return response()->json($query->get());
     }
 }

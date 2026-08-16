@@ -2,64 +2,95 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Warehouse;
-use App\Http\Resources\WarehouseResource;
+use App\Services\Tenancy\TenantContext;
+use Illuminate\Http\Request;
 
 class WarehouseController extends Controller
 {
-    public function index()
+    public function index(Request $request, TenantContext $tenant)
     {
-        $warehouses = Warehouse::with(['company'])->get();
-        //return WarehouseResource::collection($warehouses);
+        $warehouses = $tenant
+            ->scope(
+                Warehouse::query()->with(['company']),
+                $request->user(),
+                $request->query('company_id')
+            )
+            ->get();
+
         return response()->json($warehouses);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, TenantContext $tenant)
     {
-        $data = $request->validate([
+        $request->validate([
             'name' => 'required|string|max:255',
             'address' => 'required|string|max:255',
         ]);
+
+        $companyId = $tenant->resolveCompanyId(
+            $request->user(),
+            $request->input('company_id'),
+            true
+        );
 
         $warehouse = Warehouse::create([
             'name' => $request->input('name'),
             'description' => $request->input('description'),
             'address' => $request->input('address'),
-            'company_id' => $request->input('company_id'),
+            'company_id' => $companyId,
         ]);
+
         $warehouse->load('company');
 
-        //return new WarehouseResource($warehouse);
         return response()->json($warehouse, 201);
     }
 
-    public function show($id)
-    {
-        // Buscar el cliente por su ID en la base de datos
-        $warehouse = Warehouse::find($id);
+    public function show(
+        $id,
+        Request $request,
+        TenantContext $tenant
+    ) {
+        $warehouse = $tenant
+            ->scope(
+                Warehouse::where('id', $id),
+                $request->user(),
+                $request->query('company_id')
+            )
+            ->first();
 
-        // Si el almacen no existe, responder con el código de estado 404 (No encontrado)
         if (!$warehouse) {
-            return response()->json(['message' => 'Alamacen no encontrado'], 404);
+            return response()->json([
+                'message' => 'Almacen no encontrado',
+            ], 404);
         }
 
-        // Responder con el cliente y el código de estado 200 (OK)
         return response()->json($warehouse, 200);
     }
 
-    public function put(Request $request, $id)
-    {
-        $warehouse = Warehouse::find($id);
-
-        if (!$warehouse) {
-            return response()->json(['message' => 'Alamacen no encontrado'], 404);
-        }
-
-        $data = $request->validate([
+    public function put(
+        Request $request,
+        $id,
+        TenantContext $tenant
+    ) {
+        $request->validate([
             'name' => 'required|string|max:255',
             'address' => 'required|string|max:255',
         ]);
+
+        $warehouse = $tenant
+            ->scope(
+                Warehouse::where('id', $id),
+                $request->user(),
+                $request->input('company_id')
+            )
+            ->first();
+
+        if (!$warehouse) {
+            return response()->json([
+                'message' => 'Almacen no encontrado',
+            ], 404);
+        }
 
         $warehouse->update([
             'name' => $request->input('name'),
@@ -70,12 +101,23 @@ class WarehouseController extends Controller
         return response()->json($warehouse, 200);
     }
 
-    public function destroy($id)
-    {
-        $warehouse = Warehouse::find($id);
+    public function destroy(
+        $id,
+        Request $request,
+        TenantContext $tenant
+    ) {
+        $warehouse = $tenant
+            ->scope(
+                Warehouse::where('id', $id),
+                $request->user(),
+                $request->input('company_id')
+            )
+            ->first();
 
         if (!$warehouse) {
-            return response()->json(['message' => 'Alamacen no encontrado'], 404);
+            return response()->json([
+                'message' => 'Almacen no encontrado',
+            ], 404);
         }
 
         $warehouse->delete();
@@ -83,10 +125,23 @@ class WarehouseController extends Controller
         return response()->json(null, 204);
     }
 
-    public function getByCompany($company_id)
-    {
-        $warehouses = Warehouse::where('company_id', $company_id)->get();
-        $warehouses->Load('company');
+    public function getByCompany(
+        $company_id,
+        Request $request,
+        TenantContext $tenant
+    ) {
+        $companyId = $tenant->resolveCompanyId(
+            $request->user(),
+            $company_id
+        );
+
+        $warehouses = Warehouse::where(
+            'company_id',
+            $companyId
+        )->get();
+
+        $warehouses->load('company');
+
         return response()->json($warehouses, 200);
     }
 }

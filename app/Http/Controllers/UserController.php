@@ -3,154 +3,248 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\Tenancy\TenantContext;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use App\Models\Company;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
-
+use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index()
+    private function requestedCompanyId(Request $request)
     {
-        $users = User::with(['roles', 'company'])->get();
+        if ($request->has('company_id')) {
+            return $request->input('company_id');
+        }
+
+        if ($request->has('companyName')) {
+            return $request->input('companyName');
+        }
+
+        return null;
+    }
+
+    public function index(Request $request, TenantContext $tenant)
+    {
+        $users = $tenant
+            ->scope(
+                User::query()->with(['roles', 'company']),
+                $request->user(),
+                $request->query('company_id')
+            )
+            ->get();
+
         return response()->json($users);
     }
 
-    /**
-     * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
-    public function store(Request $request)
+    public function store(Request $request, TenantContext $tenant)
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email'
+            'email' => 'required|email',
+            'password' => 'required|string|min:6',
+            'rol' => 'required',
         ]);
 
-        // Buscar o crear la empresa
-        if ($request->input('company')) {
-            $company = Company::create(['name' => $request->input('company')]);
-            $company_id = $company->id;
-        } else {
-            $company_id = $request->input('companyName');
-        }
+        $companyId = $tenant->resolveCompanyId(
+            $request->user(),
+            $this->requestedCompanyId($request),
+            true
+        );
 
+        if (User::where('email', $request->input('email'))->exists()) {
+            return response()->json([
+                'message' => 'El correo ya está registrado',
+            ], 409);
+        }
 
         $user = User::create([
             'name' => $request->input('name'),
             'email' => $request->input('email'),
             'password' => Hash::make($request->input('password')),
-            'company_id' => $company_id,
+            'company_id' => $companyId,
         ]);
 
-        $user->roles()->attach($request->input('rol'));
+        $user->roles()->sync((array) $request->input('rol'));
 
-        return response()->json($user, 201);
+        return response()->json(
+            $user->load(['roles', 'company']),
+            201
+        );
     }
 
-    public function getUsersByRole()
-    {
-        $roleIds = [8, 9, 10, 16]; // IDs de roles predefinidos
+    public function getUsersByRole(
+        Request $request,
+        TenantContext $tenant
+    ) {
+        $roleIds = [8, 9, 10, 16];
 
-        $users = User::whereHas('roles', function ($query) use ($roleIds) {
-            $query->whereIn('roles.id', $roleIds); // Asegúrate de usar la columna correcta
-        })->get();
+        $query = User::whereHas(
+            'roles',
+            function ($query) use ($roleIds) {
+                $query->whereIn('roles.id', $roleIds);
+            }
+        );
+
+        $users = $tenant
+            ->scope(
+                $query,
+                $request->user(),
+                $request->query('company_id')
+            )
+            ->get();
 
         if ($users->isEmpty()) {
-            return response()->json(['message' => 'Usuario no encontrado'], 404);
+            return response()->json([
+                'message' => 'Usuario no encontrado',
+            ], 404);
         }
 
         return response()->json($users, 200);
     }
 
-    /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
-    {
-        $user = User::with('roles')->find($id);
+    public function show(
+        $id,
+        Request $request,
+        TenantContext $tenant
+    ) {
+        $user = $tenant
+            ->scope(
+                User::query()->with('roles')->where('id', $id),
+                $request->user(),
+                $request->query('company_id')
+            )
+            ->first();
+
         if (!$user) {
-            return response()->json(['message' => 'Usuario no encontrado'], 404);
+            return response()->json([
+                'message' => 'Usuario no encontrado',
+            ], 404);
         }
 
-        // Responder con el producto y el código de estado 200 (OK)
         return response()->json($user, 200);
     }
 
-    /**
-     * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function update(Request $request, $id)
-    {
-        $user = User::with('roles')->find($id);
-
-        if (!$user) {
-            return response()->json(['message' => 'Usuario no encontrado'], 404);
-        }
-
+    public function update(
+        Request $request,
+        $id,
+        TenantContext $tenant
+    ) {
         $request->validate([
             'name' => 'required|string|max:255',
         ]);
 
-        $user->update([
+        $user = $tenant
+            ->scope(
+                User::query()->with('roles')->where('id', $id),
+                $request->user(),
+                $this->requestedCompanyId($request)
+            )
+            ->first();
+
+        if (!$user) {
+            return response()->json([
+                'message' => 'Usuario no encontrado',
+            ], 404);
+        }
+
+        $updates = [
             'name' => $request->input('name'),
-            //'company_id' => $company_id,
-            'email' => $request->input('email'),
-            'rol_id' => $request->input('rol')
-        ]);
+        ];
 
-        $user->roles()->sync($request->input('rol'));
+        if ($request->filled('email')) {
+            $duplicate = User::where(
+                'email',
+                $request->input('email')
+            )
+                ->where('id', '!=', $user->id)
+                ->exists();
 
-        // Responder con el inventario actualizado y el código de estado 200 (OK)
-        return response()->json($user, 200);
+            if ($duplicate) {
+                return response()->json([
+                    'message' => 'El correo ya está registrado',
+                ], 409);
+            }
+
+            $updates['email'] = $request->input('email');
+        }
+
+        $user->update($updates);
+
+        if ($request->has('rol')) {
+            $user->roles()->sync(
+                (array) $request->input('rol')
+            );
+        }
+
+        return response()->json(
+            $user->fresh()->load(['roles', 'company']),
+            200
+        );
     }
 
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy($id)
-    {
-        $user = User::with('roles')->find($id);
+    public function destroy(
+        $id,
+        Request $request,
+        TenantContext $tenant
+    ) {
+        $user = $tenant
+            ->scope(
+                User::query()->with('roles')->where('id', $id),
+                $request->user(),
+                $this->requestedCompanyId($request)
+            )
+            ->first();
+
         if (!$user) {
-            return response()->json(['message' => 'Usuario no encontrado'], 404);
+            return response()->json([
+                'message' => 'Usuario no encontrado',
+            ], 404);
         }
 
-        // Verificar si el usuario tiene dependencias en point_of_sales
-        $hasDependencies = DB::table('point_of_sales')->where('seller_id', $id)->exists();
+        if ((int) $user->id === (int) $request->user()->id) {
+            return response()->json([
+                'message' => 'No puede eliminar su propio usuario',
+            ], 400);
+        }
+
+        $hasDependencies = DB::table('point_of_sales')
+            ->where('seller_id', $user->id)
+            ->exists();
+
         if ($hasDependencies) {
-            return response()->json(['message' => 'No se puede eliminar el usuario porque tiene dependencias en Punto de Ventas'], 400);
+            return response()->json([
+                'message' =>
+                    'No se puede eliminar el usuario porque tiene dependencias en Punto de Ventas',
+            ], 400);
         }
 
-        // Eliminar el usuario
         $user->delete();
 
         return response()->json(null, 204);
     }
 
-    public function getUsersByCompany($companyId)
-    {
-        $users = User::where('company_id', $companyId)->with(['roles', 'company'])->get();
+    public function getUsersByCompany(
+        $companyId,
+        Request $request,
+        TenantContext $tenant
+    ) {
+        $resolvedCompanyId = $tenant->resolveCompanyId(
+            $request->user(),
+            $companyId
+        );
+
+        $users = User::where(
+            'company_id',
+            $resolvedCompanyId
+        )
+            ->with(['roles', 'company'])
+            ->get();
+
         if ($users->isEmpty()) {
-            return response()->json(['message' => 'No se encontraron usuarios para la empresa especificada'], 404);
+            return response()->json([
+                'message' =>
+                    'No se encontraron usuarios para la empresa especificada',
+            ], 404);
         }
 
         return response()->json($users, 200);

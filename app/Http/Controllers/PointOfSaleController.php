@@ -2,153 +2,207 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\PointOfSale;
 use App\Models\User;
+use App\Services\Tenancy\TenantContext;
+use Illuminate\Http\Request;
 
 class PointOfSaleController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index()
+    private function tenantQuery(Request $request, TenantContext $tenant)
     {
-        $pop = PointOfSale::with(['company'])->get();
-        return response()->json($pop, 200);
+        $companyId = $tenant->resolveCompanyId(
+            $request->user(),
+            $request->input('company_id')
+        );
+
+        $query = PointOfSale::query();
+
+        if ($companyId !== null) {
+            $query->where('company_id', $companyId);
+        }
+
+        return [$query, $companyId];
     }
 
-    /**
-     * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
-    public function store(Request $request)
+    public function index(Request $request, TenantContext $tenant)
+    {
+        [$query] = $this->tenantQuery($request, $tenant);
+
+        $pops = $query->with(['company'])->get();
+
+        return response()->json($pops, 200);
+    }
+
+    public function store(Request $request, TenantContext $tenant)
     {
         $request->validate([
             'identifier' => 'required|string|max:255',
             'ubication' => 'required|string|max:255',
         ]);
 
-        //validar que el identificador no exista
-        $pop = PointOfSale::where('identifier', $request->input('identifier'))
-            ->where('company_id', $request->input('company_id'))
+        $companyId = $tenant->resolveCompanyId(
+            $request->user(),
+            $request->input('company_id'),
+            true
+        );
+
+        $existing = PointOfSale::where(
+            'identifier',
+            $request->input('identifier')
+        )
+            ->where('company_id', $companyId)
             ->first();
-        if ($pop) {
-            return response()->json(['message' => 'El identificador ya existe'], 400);
+
+        if ($existing) {
+            return response()->json([
+                'message' => 'El identificador ya existe',
+            ], 400);
         }
 
         $pop = PointOfSale::create([
             'identifier' => $request->input('identifier'),
             'ubication' => $request->input('ubication'),
-            'company_id' => $request->input('company_id'),
+            'company_id' => $companyId,
         ]);
-        $pop->load('company');
 
+        $pop->load('company');
 
         return response()->json($pop, 201);
     }
 
-    /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
-    {
-        $pop = PointOfSale::find($id);
+    public function show(
+        $id,
+        Request $request,
+        TenantContext $tenant
+    ) {
+        [$query] = $this->tenantQuery($request, $tenant);
+
+        $pop = $query->where('id', $id)->first();
 
         if (!$pop) {
-            return response()->json(['message' => 'Punto de venta no encontrado'], 404);
+            return response()->json([
+                'message' => 'Punto de venta no encontrado',
+            ], 404);
         }
 
         return response()->json($pop, 200);
     }
 
-    /**
-     * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function update(Request $request, $id)
-    {
-
-        $pop = PointOfSale::find($id);
-
-        if (!$pop) {
-            return response()->json(['message' => 'Punto de venta no encontrado'], 404);
-        }
+    public function update(
+        Request $request,
+        $id,
+        TenantContext $tenant
+    ) {
         $request->validate([
             'identifier' => 'required|string|max:255',
             'ubication' => 'required|string|max:255',
         ]);
 
-        if ($request->input('seller_id')) {
-            $user = User::find($request->input('seller_id'));
-            if (!$user) {
-                return response()->json(['message' => 'Vendedor no encontrado'], 404);
+        [$query, $companyId] = $this->tenantQuery(
+            $request,
+            $tenant
+        );
+
+        $pop = $query->where('id', $id)->first();
+
+        if (!$pop) {
+            return response()->json([
+                'message' => 'Punto de venta no encontrado',
+            ], 404);
+        }
+
+        $seller = null;
+        $sellerId = null;
+
+        if ($request->filled('seller_id')) {
+            $sellerCompanyId = $companyId ?? $pop->company_id;
+
+            $sellerUser = User::where(
+                'id',
+                $request->input('seller_id')
+            )
+                ->where('company_id', $sellerCompanyId)
+                ->first();
+
+            if (!$sellerUser) {
+                return response()->json([
+                    'message' => 'Vendedor no encontrado',
+                ], 404);
             }
-            $seller = $user->name;
-            $seller_id = $request->input('seller_id');
-        } else {
-            $seller = null;
-            $seller_id = null;
+
+            $seller = $sellerUser->name;
+            $sellerId = $sellerUser->id;
         }
 
         $pop->update([
             'identifier' => $request->input('identifier'),
             'ubication' => $request->input('ubication'),
-            'status' => $request->input('status'),
-            'seller_id' => $seller_id,
+            'status' => $request->input('status', $pop->status),
+            'seller_id' => $sellerId,
             'seller' => $seller,
         ]);
 
         return response()->json($pop, 200);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy($id)
-    {
-        $pop = PointOfSale::find($id);
+    public function destroy(
+        $id,
+        Request $request,
+        TenantContext $tenant
+    ) {
+        [$query] = $this->tenantQuery($request, $tenant);
+
+        $pop = $query->where('id', $id)->first();
 
         if (!$pop) {
-            return response()->json(['message' => 'Punto de venta no encontrado'], 404);
+            return response()->json([
+                'message' => 'Punto de venta no encontrado',
+            ], 404);
         }
 
         $pop->delete();
 
-        return response()->json(['message' => 'Punto de venta eliminado'], 200);
+        return response()->json([
+            'message' => 'Punto de venta eliminado',
+        ], 200);
     }
 
-    public function getBySellerId($id)
-    {
-        $pop = PointOfSale::where('seller_id', $id)->get();
+    public function getBySellerId(
+        $seller_id,
+        Request $request,
+        TenantContext $tenant
+    ) {
+        [$query] = $this->tenantQuery($request, $tenant);
 
-        if (!$pop) {
-            return response()->json(['message' => 'Punto de venta no encontrado'], 404);
-        }
+        $pops = $query
+            ->where('seller_id', $seller_id)
+            ->get();
 
-        return response()->json($pop, 200);
+        return response()->json($pops, 200);
     }
 
-    public function getByCompanyId($id)
-    {
-        $pop = PointOfSale::with(['company'])->where('company_id', $id)->get();
+    public function getByCompanyId(
+        $company_id,
+        Request $request,
+        TenantContext $tenant
+    ) {
+        $companyId = $tenant->resolveCompanyId(
+            $request->user(),
+            $company_id
+        );
 
-        if ($pop->isEmpty()) {
-            return response()->json(['message' => 'No se encontraron puntos de venta para esta empresa'], 404);
+        $pops = PointOfSale::with(['company'])
+            ->where('company_id', $companyId)
+            ->get();
+
+        if ($pops->isEmpty()) {
+            return response()->json([
+                'message' =>
+                    'No se encontraron puntos de venta para esta empresa',
+            ], 404);
         }
 
-        return response()->json($pop, 200);
+        return response()->json($pops, 200);
     }
 }

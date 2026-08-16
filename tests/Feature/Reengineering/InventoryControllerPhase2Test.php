@@ -136,7 +136,8 @@ class InventoryControllerPhase2Test extends TestCase
             'id' => $ownInventory->id,
         ]);
         $response->assertJsonMissing([
-            'id' => $otherInventory->id,
+            'product_id' => $ctx['productB']->id,
+            'warehouse_id' => $ctx['otherWarehouse']->id,
         ]);
     }
 

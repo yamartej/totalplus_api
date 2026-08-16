@@ -8,6 +8,8 @@ use App\Http\Controllers\CashRegisterController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\InventoryController;
+use App\Http\Controllers\InventoryMovementController;
+use App\Http\Controllers\InventoryTransferController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PurchaseOrderController;
@@ -97,6 +99,8 @@ Route::middleware('auth:sanctum',)->group(function () {
 
 
     // Rutas para inventario
+    Route::post('/inventory/transfer', [InventoryTransferController::class, 'store'])->middleware('permission:inventory.update');
+    Route::get('/inventory/kardex', [InventoryMovementController::class, 'index'])->middleware('permission:inventory.view');
     Route::post('/inventory/saveInventoryProducts', [InventoryController::class, 'saveInventoryProducts'])->middleware('permission:inventory.update');
     Route::post('/inventory/removeAssignedInventory', [InventoryController::class, 'removeAssignedInventory'])->middleware('permission:inventory.update');
     Route::get('/inventory', [InventoryController::class, 'index'])->middleware('permission:inventory.view');

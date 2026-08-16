@@ -16,18 +16,20 @@ class InventoryBaselineTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function grantApiPermissions(User $user, array $permissionNames): void
-    {
+    private function grantApiPermissions(
+        User $user,
+        array $permissionNames
+    ): void {
         $role = Roles::firstOrCreate(
             ['name' => 'Phase 0 Inventory Baseline'],
-            ['description' => 'Test-only role for Phase 0 inventory characterization']
+            ['description' => 'Inventory characterization/regression role']
         );
 
         $permissionIds = collect($permissionNames)
             ->map(function (string $name) {
                 return Permission::firstOrCreate(
                     ['name' => $name],
-                    ['description' => 'Phase 0 characterization permission']
+                    ['description' => 'Inventory characterization permission']
                 )->id;
             })
             ->all();
@@ -46,14 +48,15 @@ class InventoryBaselineTest extends TestCase
         ]);
 
         return [
-            'Authorization' => 'Bearer ' . $user->createToken('phase-0-test')->plainTextToken,
+            'Authorization' => 'Bearer ' .
+                $user->createToken('inventory-regression-test')->plainTextToken,
         ];
     }
 
     private function companyAndWarehouses(): array
     {
         $company = Company::create([
-            'name' => 'Inventory Baseline Company',
+            'name' => 'Inventory Regression Company',
         ]);
 
         $warehouseA = Warehouse::create([
@@ -73,11 +76,17 @@ class InventoryBaselineTest extends TestCase
         return compact('company', 'warehouseA', 'warehouseB');
     }
 
-    public function test_current_inventory_update_replaces_balance_directly(): void
+    public function test_inventory_update_keeps_absolute_balance_contract(): void
     {
-        $user = User::factory()->create();
         $ctx = $this->companyAndWarehouses();
+
+        $user = User::factory()->create([
+            'company_id' => $ctx['company']->id,
+        ]);
+
         $product = Product::factory()->create();
+        $product->company_id = $ctx['company']->id;
+        $product->save();
 
         $inventory = Inventory::create([
             'product_id' => $product->id,
@@ -96,17 +105,23 @@ class InventoryBaselineTest extends TestCase
     }
 
     /**
-     * Documenta un defecto actual:
-     * saveInventoryProducts recibe warehouse_id pero, para productos ya
-     * existentes, busca únicamente por product_id y actualiza el primer saldo.
+     * Phase 0 documented a defect here: the controller used to search
+     * only by product_id and update the first warehouse balance.
      *
-     * @group baseline-defect
+     * Phase 2 turns that characterization into a regression assertion:
+     * the requested warehouse must be the only balance modified.
      */
-    public function test_current_inventory_addition_is_not_scoped_to_requested_warehouse(): void
+    public function test_inventory_addition_is_scoped_to_requested_warehouse(): void
     {
-        $user = User::factory()->create();
         $ctx = $this->companyAndWarehouses();
+
+        $user = User::factory()->create([
+            'company_id' => $ctx['company']->id,
+        ]);
+
         $product = Product::factory()->create();
+        $product->company_id = $ctx['company']->id;
+        $product->save();
 
         $inventoryA = Inventory::create([
             'product_id' => $product->id,
@@ -132,9 +147,7 @@ class InventoryBaselineTest extends TestCase
 
         $response->assertStatus(201);
 
-        // Caracterización del comportamiento actual:
-        // se actualiza el primer Inventory encontrado por product_id.
-        $this->assertSame(15, (int) $inventoryA->fresh()->quantity);
-        $this->assertSame(20, (int) $inventoryB->fresh()->quantity);
+        $this->assertSame(10, (int) $inventoryA->fresh()->quantity);
+        $this->assertSame(25, (int) $inventoryB->fresh()->quantity);
     }
 }

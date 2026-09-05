@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Reengineering;
 
+use App\Models\Batch;
 use App\Models\Company;
+use App\Models\Cost;
 use App\Models\Inventory;
 use App\Models\Permission;
 use App\Models\Product;
@@ -88,6 +90,33 @@ class InventoryCompatibilityPhase2Test extends TestCase
             'warehouseB',
             'product',
             'user'
+        );
+    }
+
+    private function otherCompanyContext(): array
+    {
+        $company = Company::create([
+            'name' => 'Phase 2E Other Company',
+        ]);
+
+        $warehouse = Warehouse::create([
+            'name' => 'Other Company Warehouse',
+            'description' => 'Other',
+            'address' => 'Other',
+            'company_id' => $company->id,
+        ]);
+
+        $product = Product::factory()->create([
+            'quantity' => 80,
+        ]);
+
+        $product->company_id = $company->id;
+        $product->save();
+
+        return compact(
+            'company',
+            'warehouse',
+            'product'
         );
     }
 
@@ -223,6 +252,213 @@ class InventoryCompatibilityPhase2Test extends TestCase
         $this->assertSame(
             50,
             (int) $ctx['product']->fresh()->quantity
+        );
+    }
+
+    public function test_available_products_excludes_other_company_products_and_stock(): void
+    {
+        $ctx = $this->context();
+        $other = $this->otherCompanyContext();
+
+        Inventory::create([
+            'product_id' => $ctx['product']->id,
+            'warehouse_id' => $ctx['warehouseA']->id,
+            'quantity' => 10,
+        ]);
+
+        // Defensive legacy-data scenario: an inventory row for the same
+        // product exists in a warehouse belonging to another company.
+        Inventory::create([
+            'product_id' => $ctx['product']->id,
+            'warehouse_id' => $other['warehouse']->id,
+            'quantity' => 20,
+        ]);
+
+        Inventory::create([
+            'product_id' => $other['product']->id,
+            'warehouse_id' => $other['warehouse']->id,
+            'quantity' => 15,
+        ]);
+
+        $response = $this
+            ->withHeaders($this->authHeaders($ctx['user']))
+            ->getJson('/api/products/available');
+
+        $response->assertStatus(200);
+
+        $payload = collect($response->json());
+        $productIds = $payload->pluck('id')->map(
+            fn ($id) => (int) $id
+        );
+
+        $this->assertTrue(
+            $productIds->contains((int) $ctx['product']->id)
+        );
+
+        $this->assertFalse(
+            $productIds->contains((int) $other['product']->id)
+        );
+
+        $ownProductPayload = $payload->firstWhere(
+            'id',
+            $ctx['product']->id
+        );
+
+        $this->assertSame(
+            10,
+            (int) $ownProductPayload[
+                'inventory_total_quantity'
+            ]
+        );
+
+        $this->assertSame(
+            40,
+            (int) $ownProductPayload[
+                'unallocated_quantity'
+            ]
+        );
+
+        $this->assertCount(
+            1,
+            $ownProductPayload['inventories']
+        );
+
+        $this->assertSame(
+            $ctx['warehouseA']->id,
+            (int) $ownProductPayload[
+                'inventories'
+            ][0]['warehouse_id']
+        );
+    }
+
+    public function test_available_products_keeps_legacy_null_company_product_but_scopes_its_stock(): void
+    {
+        $ctx = $this->context();
+        $other = $this->otherCompanyContext();
+
+        $legacyProduct = Product::factory()->create([
+            'quantity' => 30,
+        ]);
+
+        $legacyProduct->company_id = null;
+        $legacyProduct->save();
+
+        Inventory::create([
+            'product_id' => $legacyProduct->id,
+            'warehouse_id' => $ctx['warehouseA']->id,
+            'quantity' => 5,
+        ]);
+
+        Inventory::create([
+            'product_id' => $legacyProduct->id,
+            'warehouse_id' => $other['warehouse']->id,
+            'quantity' => 7,
+        ]);
+
+        $response = $this
+            ->withHeaders($this->authHeaders($ctx['user']))
+            ->getJson('/api/products/available');
+
+        $response->assertStatus(200);
+
+        $payload = collect($response->json());
+
+        $legacyPayload = $payload->firstWhere(
+            'id',
+            $legacyProduct->id
+        );
+
+        $this->assertNotNull($legacyPayload);
+
+        $this->assertSame(
+            5,
+            (int) $legacyPayload[
+                'inventory_total_quantity'
+            ]
+        );
+
+        $this->assertSame(
+            25,
+            (int) $legacyPayload[
+                'unallocated_quantity'
+            ]
+        );
+
+        $this->assertCount(
+            1,
+            $legacyPayload['inventories']
+        );
+
+        $this->assertSame(
+            $ctx['warehouseA']->id,
+            (int) $legacyPayload[
+                'inventories'
+            ][0]['warehouse_id']
+        );
+    }
+
+    public function test_products_with_costs_is_scoped_and_uses_tenant_batch_denominator(): void
+    {
+        $ctx = $this->context();
+        $other = $this->otherCompanyContext();
+
+        $batch = Batch::create([
+            'name' => 'Phase 2E Shared Batch',
+            'description' => 'Tenant denominator test',
+            'quantity' => '100',
+        ]);
+
+        Cost::create([
+            'amount' => 100,
+            'description' => 'Freight',
+            'batch_id' => $batch->id,
+        ]);
+
+        $ctx['product']->batch_id = $batch->id;
+        $ctx['product']->quantity = 10;
+        $ctx['product']->price = 5;
+        $ctx['product']->save();
+
+        $other['product']->batch_id = $batch->id;
+        $other['product']->quantity = 90;
+        $other['product']->price = 5;
+        $other['product']->save();
+
+        $response = $this
+            ->withHeaders($this->authHeaders($ctx['user']))
+            ->getJson('/api/products/with-costs');
+
+        $response->assertStatus(200);
+
+        $payload = collect($response->json());
+        $productIds = $payload->pluck('id')->map(
+            fn ($id) => (int) $id
+        );
+
+        $this->assertTrue(
+            $productIds->contains((int) $ctx['product']->id)
+        );
+
+        $this->assertFalse(
+            $productIds->contains((int) $other['product']->id)
+        );
+
+        $ownProductPayload = $payload->firstWhere(
+            'id',
+            $ctx['product']->id
+        );
+
+        // 100 cost / 10 units from this tenant = 10.
+        // Without tenant scoping, the other company's 90 units would
+        // incorrectly make this 1.
+        $this->assertSame(
+            10.0,
+            (float) $ownProductPayload['unit_cost']
+        );
+
+        $this->assertSame(
+            15.0,
+            (float) $ownProductPayload['price_shipping']
         );
     }
 }

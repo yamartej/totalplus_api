@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Services\Inventory\InventoryCompatibilityService;
+use App\Services\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
@@ -101,34 +103,70 @@ class ProductController extends Controller
      * products.quantity remains the legacy received/purchase quantity.
      * Current stock is derived only from inventories.quantity.
      *
-     * For backwards compatibility, quantity in this endpoint continues to
-     * mean "quantity still available to assign". The persisted product row
-     * is never modified by this response transformation.
+     * Product rows explicitly owned by another company are excluded.
+     * company_id = null remains readable during the compatibility window
+     * because legacy product creation did not always persist ownership.
+     *
+     * Inventory balances are always restricted to the resolved company's
+     * warehouses, including for those legacy null-company products.
      */
     public function getAvailableProducts(
-        InventoryCompatibilityService $compatibility
+        Request $request,
+        InventoryCompatibilityService $compatibility,
+        TenantContext $tenantContext
     ) {
-        $products = Product::query()
-            ->where('quantity', '>', 0)
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id')
+        );
+
+        $query = Product::query()
+            ->where('quantity', '>', 0);
+
+        $this->scopeProductsForCompany(
+            $query,
+            $companyId
+        );
+
+        $inventoryScope = $this->inventoryCompanyScope(
+            $companyId
+        );
+
+        $products = $query
             ->with([
                 'category',
                 'batches',
+                'inventories' => $inventoryScope,
                 'inventories.warehouse',
             ])
             ->get()
-            ->map(function (Product $product) use ($compatibility) {
-                $compatibility->appendCompatibilityAttributes($product);
+            ->map(
+                function (Product $product) use (
+                    $compatibility,
+                    $companyId
+                ) {
+                    $compatibility->appendCompatibilityAttributes(
+                        $product,
+                        $companyId
+                    );
 
-                $unallocated = (int) $product->unallocated_quantity;
+                    $unallocated = (int)
+                        $product->unallocated_quantity;
 
-                if ($unallocated <= 0) {
-                    return null;
+                    if ($unallocated <= 0) {
+                        return null;
+                    }
+
+                    // Response-only legacy compatibility. This does not
+                    // modify products.quantity in the database.
+                    $product->setAttribute(
+                        'quantity',
+                        $unallocated
+                    );
+
+                    return $product;
                 }
-
-                $product->setAttribute('quantity', $unallocated);
-
-                return $product;
-            })
+            )
             ->filter()
             ->values();
 
@@ -179,73 +217,123 @@ class ProductController extends Controller
      * Keep quantity with its legacy purchase/batch meaning so PricePage and
      * the existing costing workflow do not change in Phase 2E. Canonical
      * inventory metadata is exposed alongside it for new consumers.
+     *
+     * The product list, inventory relations and batch quantity denominator
+     * are tenant-scoped. Legacy products with company_id = null are kept
+     * temporarily for backwards compatibility.
      */
     public function getProductsWithCosts(
-        InventoryCompatibilityService $compatibility
+        Request $request,
+        InventoryCompatibilityService $compatibility,
+        TenantContext $tenantContext
     ) {
-        $products = Product::with([
-            'batches.costs',
-            'inventory.warehouse',
-            'inventories.warehouse',
-        ])
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id')
+        );
+
+        $query = Product::query();
+
+        $this->scopeProductsForCompany(
+            $query,
+            $companyId
+        );
+
+        $inventoryScope = $this->inventoryCompanyScope(
+            $companyId
+        );
+
+        $products = $query
+            ->with([
+                'batches.costs',
+                'inventory' => $inventoryScope,
+                'inventory.warehouse',
+                'inventories' => $inventoryScope,
+                'inventories.warehouse',
+            ])
             ->whereHas(
                 'batches.costs',
-                function ($query) {
-                    $query->where('amount', '>', 0);
+                function ($costQuery) {
+                    $costQuery->where('amount', '>', 0);
                 }
             )
             ->get()
-            ->map(function (Product $product) use ($compatibility) {
-                $compatibility->appendCompatibilityAttributes($product);
+            ->map(
+                function (Product $product) use (
+                    $compatibility,
+                    $companyId
+                ) {
+                    $compatibility->appendCompatibilityAttributes(
+                        $product,
+                        $companyId
+                    );
 
-                $totalCosts = $product->batches->costs->sum('amount');
-                $totalQuantity = Product::where(
-                    'batch_id',
-                    $product->batch_id
-                )->sum('quantity');
+                    $totalCosts =
+                        $product->batches->costs->sum('amount');
 
-                $unitCost = $totalQuantity > 0
-                    ? round($totalCosts / $totalQuantity, 2)
-                    : 0;
+                    $totalQuantityQuery = Product::query()
+                        ->where(
+                            'batch_id',
+                            $product->batch_id
+                        );
 
-                $unitCostProduct = round(
-                    $unitCost + $product->price,
-                    2
-                );
+                    $this->scopeProductsForCompany(
+                        $totalQuantityQuery,
+                        $companyId
+                    );
 
-                return [
-                    'id' => $product->id,
-                    'name' => $product->name,
-                    'price' => $product->price,
+                    $totalQuantity = $totalQuantityQuery
+                        ->sum('quantity');
 
-                    // Preserve existing cost/purchase semantics.
-                    'quantity' => $product->quantity,
+                    $unitCost = $totalQuantity > 0
+                        ? round(
+                            $totalCosts / $totalQuantity,
+                            2
+                        )
+                        : 0;
 
-                    // Explicit Phase 2E compatibility fields.
-                    'legacy_quantity' =>
-                        (int) $product->legacy_quantity,
-                    'inventory_total_quantity' =>
-                        (int) $product->inventory_total_quantity,
-                    'unallocated_quantity' =>
-                        (int) $product->unallocated_quantity,
+                    $unitCostProduct = round(
+                        $unitCost + $product->price,
+                        2
+                    );
 
-                    'unit_cost' => $unitCost,
-                    'price_shipping' => $unitCostProduct,
-                    'final_cost' => $product->final_cost,
-                    'wholesale_final_cost' =>
-                        $product->wholesale_final_cost,
-                    'batches' => $product->batches,
-                    'costs' => $product->batches?->costs,
+                    return [
+                        'id' => $product->id,
+                        'name' => $product->name,
+                        'price' => $product->price,
 
-                    // Legacy single-inventory compatibility.
-                    'warehouse' =>
-                        $product->inventory?->warehouse,
-                    'inventory' => $product->inventory,
+                        // Preserve existing cost/purchase semantics.
+                        'quantity' => $product->quantity,
 
-                    // Canonical multi-warehouse representation.
-                    'inventories' => $product->inventories,
-                ];
-            });
+                        // Explicit Phase 2E compatibility fields.
+                        'legacy_quantity' =>
+                            (int) $product->legacy_quantity,
+                        'inventory_total_quantity' =>
+                            (int)
+                            $product->inventory_total_quantity,
+                        'unallocated_quantity' =>
+                            (int)
+                            $product->unallocated_quantity,
+
+                        'unit_cost' => $unitCost,
+                        'price_shipping' => $unitCostProduct,
+                        'final_cost' => $product->final_cost,
+                        'wholesale_final_cost' =>
+                            $product->wholesale_final_cost,
+                        'batches' => $product->batches,
+                        'costs' =>
+                            $product->batches?->costs,
+
+                        // Legacy single-inventory compatibility.
+                        'warehouse' =>
+                            $product->inventory?->warehouse,
+                        'inventory' => $product->inventory,
+
+                        // Canonical multi-warehouse representation.
+                        'inventories' => $product->inventories,
+                    ];
+                }
+            );
 
         return response()->json($products, 200);
     }
@@ -267,5 +355,50 @@ class ProductController extends Controller
         ]);
 
         return response()->json($product, 200);
+    }
+
+    /**
+     * During Phase 2E, null-company products are retained as legacy shared
+     * records because historical ProductController::create() did not always
+     * persist company_id. Explicitly-owned products remain tenant isolated.
+     */
+    private function scopeProductsForCompany(
+        Builder $query,
+        ?int $companyId
+    ): Builder {
+        if ($companyId === null) {
+            return $query;
+        }
+
+        return $query->where(
+            function (Builder $tenantQuery) use ($companyId) {
+                $tenantQuery
+                    ->where('company_id', $companyId)
+                    ->orWhereNull('company_id');
+            }
+        );
+    }
+
+    /**
+     * Scope inventory relations by their warehouse company.
+     */
+    private function inventoryCompanyScope(
+        ?int $companyId
+    ): callable {
+        return function ($inventoryQuery) use ($companyId) {
+            if ($companyId === null) {
+                return;
+            }
+
+            $inventoryQuery->whereHas(
+                'warehouse',
+                function ($warehouseQuery) use ($companyId) {
+                    $warehouseQuery->where(
+                        'company_id',
+                        $companyId
+                    );
+                }
+            );
+        };
     }
 }

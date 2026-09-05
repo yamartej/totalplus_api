@@ -2,144 +2,161 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Product;
-use Illuminate\Http\Request;
-use App\Models\SaleDetail;
 use App\Models\Sale;
-use Illuminate\Support\Facades\DB;
+use App\Models\SaleDetail;
+use App\Services\Sales\SaleTransactionService;
+use App\Services\Tenancy\TenantContext;
+use Illuminate\Http\Request;
 
 class SaleDetailController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
     public function index()
     {
         //
     }
 
-    /**
-     * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
     public function store(Request $request)
     {
         //
     }
 
-    /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
     public function show($id)
     {
         //
     }
 
-    /**
-     * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function update(Request $request, $id)
-    {
+    public function update(
+        Request $request,
+        $id,
+        TenantContext $tenant,
+        SaleTransactionService $sales
+    ) {
         $request->validate([
             'quantity' => 'required|integer|min:1',
         ]);
-        DB::beginTransaction();
+
+        $detail = SaleDetail::with([
+            'sale.customer',
+        ])->find($id);
+
+        if (!$detail) {
+            return response()->json([
+                'message' => 'Detalle de venta no encontrado',
+            ], 404);
+        }
+
+        if (!$detail->sale) {
+            return response()->json([
+                'message' =>
+                    'La venta asociada al detalle no existe',
+            ], 422);
+        }
+
+        $companyId = $this->resolveCompanyId(
+            $request,
+            $tenant,
+            $detail->sale
+        );
 
         try {
-            $sale = Sale::findOrFail($request->sale_id);
+            $result = $sales->updateDetail(
+                $detail,
+                $companyId,
+                (int) $request->input('quantity'),
+                (int) $request->user()->id
+            );
 
-            $saleDetail = SaleDetail::findOrFail($id);
-
-            // calcular el monto de los productos que tenía
-            $product = Product::findOrFail($saleDetail->product->id ?? $saleDetail->product_id);
-
-            if ($saleDetail->quantity >= 3) {
-                $totalByProduct = $product->wholesale_final_cost * $saleDetail->quantity;
-            } else {
-                $totalByProduct = $product->final_cost * $saleDetail->quantity;
-            }
-            $total = $sale->total_amount - $totalByProduct;
-            $newTotal = $total + $request->input('new_total_amount');
-            // Actualizar el inventario
-            $inventory = $product->inventory;
-            if ($inventory) {
-                $inventory->quantity += $saleDetail->quantity; // Devolver la cantidad anterior al inventario
-                $inventory->quantity -= $request->input('quantity'); // Restar la nueva cantidad
-                $inventory->save();
-            } else {
-                return response()->json(['error' => 'Inventario no encontrado para el producto'], 404);
-            }
-
-            $saleDetail->update([
-                'quantity' => $request->input('quantity'),
-            ]);
-
-            $sale->update([
-                'total_amount' => $newTotal,
-            ]);
-
-            $response = [
-                $saleDetail,
-                $sale,
-            ];
-
-            DB::commit();
-
-            return response()->json($response, 200);
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return response()->json(['error' => $e->getMessage()], 500);
+            // Preserve the legacy response shape:
+            // [saleDetail, sale].
+            return response()->json([
+                $result['detail'],
+                $result['sale'],
+            ], 200);
+        } catch (\DomainException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 422);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+            ], 500);
         }
     }
 
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy($id)
-    {
-        $saleDetail = SaleDetail::find($id);
+    public function destroy(
+        $id,
+        Request $request,
+        TenantContext $tenant,
+        SaleTransactionService $sales
+    ) {
+        $detail = SaleDetail::with([
+            'sale.customer',
+        ])->find($id);
 
-        $product = Product::findOrFail($saleDetail->product->id ?? $saleDetail->product_id);
-        $inventory = $product->inventory;
-        $inventory->quantity += $saleDetail->quantity; // Devolver la cantidad anterior al inventario
-        $inventory->save();
-
-        $sale = Sale::findOrFail($saleDetail->sale_id);
-        if ($sale->details->count() <= 1) {
-            $sale->delete();
-        } else {
-            if ($saleDetail->quantity >= 3) {
-                $totalByProduct = $product->wholesale_final_cost * $saleDetail->quantity;
-            } else {
-                $totalByProduct = $product->final_cost * $saleDetail->quantity;
-            }
-            $total = $sale->total_amount - $totalByProduct;
-            $sale->update([
-                'total_amount' => $total,
-            ]);
+        if (!$detail) {
+            return response()->json([
+                'message' => 'Detalle de venta no encontrado',
+            ], 404);
         }
 
-
-        if (!$saleDetail) {
-            return response()->json(['message' => 'Venta no encontrado'], 404);
+        if (!$detail->sale) {
+            return response()->json([
+                'message' =>
+                    'La venta asociada al detalle no existe',
+            ], 422);
         }
 
-        $saleDetail->delete();
+        $companyId = $this->resolveCompanyId(
+            $request,
+            $tenant,
+            $detail->sale
+        );
 
-        return response()->json(null, 204);
+        try {
+            $sales->removeDetail(
+                $detail,
+                $companyId,
+                (int) $request->user()->id
+            );
+
+            return response()->json(null, 204);
+        } catch (\DomainException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 422);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'error' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    private function resolveCompanyId(
+        Request $request,
+        TenantContext $tenant,
+        Sale $sale
+    ): int {
+        $saleCompanyId = $sale->company_id;
+
+        if (
+            $saleCompanyId === null
+            && $sale->customer
+        ) {
+            $saleCompanyId =
+                $sale->customer->company_id;
+        }
+
+        if ($saleCompanyId === null) {
+            abort(
+                422,
+                'No se puede determinar la empresa de la venta.'
+            );
+        }
+
+        return (int) $tenant->resolveCompanyId(
+            $request->user(),
+            $saleCompanyId,
+            true
+        );
     }
 }

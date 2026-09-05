@@ -8,6 +8,7 @@ use App\Models\PointOfSale;
 use App\Models\Sale;
 use App\Models\SaleDetail;
 use App\Models\User;
+use App\Services\Sales\SaleTransactionService;
 use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -118,16 +119,21 @@ class SaleController extends Controller
         return response()->json($query->get());
     }
 
-    public function store(Request $request, TenantContext $tenant)
-    {
+    public function store(
+        Request $request,
+        TenantContext $tenant,
+        SaleTransactionService $sales
+    ) {
         $request->validate([
             'client_id' => 'required|integer',
             'seller_id' => 'required|integer',
             'pop_id' => 'required|integer',
-            'total' => 'required|numeric',
-            'carts' => 'required|array',
+            'total' => 'sometimes|numeric',
+            'carts' => 'required|array|min:1',
             'carts.*.productId' => 'required|exists:products,id',
             'carts.*.quantity' => 'required|integer|min:1',
+            'carts.*.warehouse_id' =>
+                'sometimes|nullable|integer|exists:warehouses,id',
             'type_of_sale' => 'required|in:normal,credit',
         ]);
 
@@ -170,67 +176,28 @@ class SaleController extends Controller
             ], 404);
         }
 
-        foreach ($request->input('carts') as $cart) {
-            $inventory = $this->inventoryForCompany(
-                (int) $cart['productId'],
-                $companyId
+        try {
+            $sale = $sales->create(
+                $companyId,
+                $customer,
+                $seller,
+                $pop,
+                $request->input('type_of_sale'),
+                $request->input('carts'),
+                (int) $request->user()->id
             );
 
-            if (!$inventory) {
-                return response()->json([
-                    'message' =>
-                        'Inventario del producto no disponible para la empresa activa',
-                ], 422);
-            }
-        }
-
-        DB::beginTransaction();
-
-        try {
-            $sale = Sale::create([
-                'customer_id' => $customer->id,
-                'seller_id' => $seller->id,
-                'pop_id' => $pop->id,
-                'total_amount' => $request->input('total'),
-                'type_of_sale' => $request->input('type_of_sale'),
-                'company_id' => $companyId,
-            ]);
-
-            foreach ($request->input('carts') as $cart) {
-                SaleDetail::create([
-                    'sale_id' => $sale->id,
-                    'product_id' => $cart['productId'],
-                    'quantity' => $cart['quantity'],
-                ]);
-            }
-
-            /*
-             * PHASE 1D ONLY:
-             * Keep the current inventory arithmetic and negative-stock
-             * behavior, but constrain the selected balance to the tenant.
-             */
-            foreach ($request->input('carts') as $cart) {
-                $inventory = $this->inventoryForCompany(
-                    (int) $cart['productId'],
-                    $companyId
-                );
-
-                $inventory->quantity -= $cart['quantity'];
-                $inventory->save();
-            }
-
-            DB::commit();
-
             return response()->json($sale, 201);
-        } catch (\Exception $e) {
-            DB::rollBack();
-
+        } catch (\DomainException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 422);
+        } catch (\Throwable $e) {
             return response()->json([
                 'error' => $e->getMessage(),
             ], 500);
         }
     }
-
     public function show(
         $id,
         Request $request,
@@ -286,7 +253,8 @@ class SaleController extends Controller
     public function destroy(
         $id,
         Request $request,
-        TenantContext $tenant
+        TenantContext $tenant,
+        SaleTransactionService $sales
     ) {
         [$query, $companyId] = $this->scopeSales(
             Sale::where('id', $id),
@@ -302,65 +270,36 @@ class SaleController extends Controller
             ], 404);
         }
 
-        DB::beginTransaction();
+        if ($companyId === null) {
+            $companyId = $sale->company_id
+                ?? optional($sale->customer)->company_id;
+        }
+
+        if ($companyId === null) {
+            return response()->json([
+                'message' =>
+                    'No se puede determinar la empresa de la venta.',
+            ], 422);
+        }
 
         try {
-            /*
-             * Preserve the Phase 0 characterized multi-product restore bug:
-             * the sum is still restored to the first product only.
-             * The only Phase 1D change is tenant-scoping the inventory row.
-             */
-            if ($sale->details->count() > 0) {
-                $firstProductId =
-                    (int) $sale->details->first()->product_id;
-
-                if ($companyId === null) {
-                    $companyId = $sale->company_id
-                        ?? optional($sale->customer)->company_id;
-                }
-
-                $inventory = $companyId !== null
-                    ? $this->inventoryForCompany(
-                        $firstProductId,
-                        (int) $companyId
-                    )
-                    : Inventory::where(
-                        'product_id',
-                        $firstProductId
-                    )->first();
-
-                if (!$inventory) {
-                    DB::rollBack();
-
-                    return response()->json([
-                        'message' =>
-                            'Inventario del producto no disponible para la empresa activa',
-                    ], 422);
-                }
-
-                $inventory->quantity +=
-                    $sale->details->sum('quantity');
-                $inventory->save();
-
-                foreach ($sale->details as $detail) {
-                    $detail->delete();
-                }
-            }
-
-            $sale->delete();
-
-            DB::commit();
+            $sales->void(
+                $sale,
+                (int) $companyId,
+                (int) $request->user()->id
+            );
 
             return response()->json(null, 204);
-        } catch (\Exception $e) {
-            DB::rollBack();
-
+        } catch (\DomainException $e) {
+            return response()->json([
+                'message' => $e->getMessage(),
+            ], 422);
+        } catch (\Throwable $e) {
             return response()->json([
                 'error' => $e->getMessage(),
             ], 500);
         }
     }
-
     public function getSalesByCreditType(
         Request $request,
         TenantContext $tenant

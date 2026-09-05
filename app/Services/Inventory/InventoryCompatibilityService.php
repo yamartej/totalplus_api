@@ -2,19 +2,18 @@
 
 namespace App\Services\Inventory;
 
+use App\Models\InventoryMovement;
 use App\Models\Product;
 
 class InventoryCompatibilityService
 {
-    /**
-     * Canonical current stock is the sum of inventories.quantity.
-     *
-     * products.quantity remains a legacy purchase/received quantity during
-     * Phase 2E and product_warehouse.quantity is not considered stock.
-     *
-     * When a company is resolved, only inventory balances attached to that
-     * company's warehouses contribute to the projection.
-     */
+    private const SALE_REFERENCE_TYPES = [
+        'sale',
+        'sale_void',
+        'sale_detail_update',
+        'sale_detail_remove',
+    ];
+
     public function totalOnHand(
         Product $product,
         ?int $companyId = null
@@ -54,34 +53,66 @@ class InventoryCompatibilityService
         return (int) $query->sum('quantity');
     }
 
-    /**
-     * Quantity that has not yet been assigned to warehouse inventory.
-     *
-     * This is a temporary compatibility concept while products.quantity is
-     * still used by the purchase/batch/cost workflow.
-     */
+    public function salesDepletionQuantity(
+        Product $product,
+        ?int $companyId = null
+    ): int {
+        $query = InventoryMovement::query()
+            ->where('product_id', $product->id)
+            ->whereIn(
+                'reference_type',
+                self::SALE_REFERENCE_TYPES
+            );
+
+        if ($companyId !== null) {
+            $query->where('company_id', $companyId);
+        }
+
+        $netSaleInventoryDelta = (int)
+            $query->sum('quantity_delta');
+
+        return max(0, -$netSaleInventoryDelta);
+    }
+
     public function unallocatedQuantity(
         Product $product,
         ?int $companyId = null
     ): int {
-        $legacyQuantity = max(0, (int) $product->quantity);
+        $legacyQuantity = max(
+            0,
+            (int) $product->quantity
+        );
+
         $inventoryTotal = $this->totalOnHand(
             $product,
             $companyId
         );
 
-        return max(0, $legacyQuantity - $inventoryTotal);
+        $salesDepletion = $this->salesDepletionQuantity(
+            $product,
+            $companyId
+        );
+
+        return max(
+            0,
+            $legacyQuantity
+                - $inventoryTotal
+                - $salesDepletion
+        );
     }
 
-    /**
-     * Add explicit compatibility attributes without changing persisted data.
-     */
     public function appendCompatibilityAttributes(
         Product $product,
         ?int $companyId = null
     ): Product {
         $legacyQuantity = (int) $product->quantity;
+
         $inventoryTotal = $this->totalOnHand(
+            $product,
+            $companyId
+        );
+
+        $salesDepletion = $this->salesDepletionQuantity(
             $product,
             $companyId
         );
@@ -90,13 +121,20 @@ class InventoryCompatibilityService
             'legacy_quantity',
             $legacyQuantity
         );
+
         $product->setAttribute(
             'inventory_total_quantity',
             $inventoryTotal
         );
+
         $product->setAttribute(
             'unallocated_quantity',
-            max(0, $legacyQuantity - $inventoryTotal)
+            max(
+                0,
+                $legacyQuantity
+                    - $inventoryTotal
+                    - $salesDepletion
+            )
         );
 
         return $product;

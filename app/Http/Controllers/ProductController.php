@@ -10,20 +10,49 @@ use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
-    public function index()
-    {
-        $products = Product::with(['category', 'batches'])->get();
+    public function index(
+        Request $request,
+        TenantContext $tenantContext
+    ) {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id')
+        );
+
+        $query = Product::query();
+
+        $this->scopeProductsForCompany(
+            $query,
+            $companyId
+        );
+
+        $products = $query
+            ->with(['category', 'batches'])
+            ->get();
 
         return response()->json($products);
     }
 
-    public function create(Request $request)
-    {
+    public function create(
+        Request $request,
+        TenantContext $tenantContext
+    ) {
         $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'category_id' => 'required|exists:categories,id',
+            'price' => 'nullable|numeric|min:0',
+            'quantity' => 'nullable|integer|min:0',
+            'batch_id' => 'nullable|exists:batches,id',
+            'final_cost' => 'nullable|numeric|min:0',
+            'wholesale_final_cost' => 'nullable|numeric|min:0',
         ]);
+
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->input('company_id'),
+            true
+        );
 
         $product = Product::create([
             'name' => $request->input('name'),
@@ -33,16 +62,47 @@ class ProductController extends Controller
             'category_id' => $request->input('category_id'),
             'quantity' => $request->input('quantity'),
             'batch_id' => $request->input('batch_id'),
+
+            // These columns are NOT NULL in the legacy schema and the
+            // current frontend creates products before retail/wholesale
+            // prices are configured on PricePage.
+            'final_cost' => $request->input(
+                'final_cost',
+                0
+            ),
+            'wholesale_final_cost' => $request->input(
+                'wholesale_final_cost',
+                0
+            ),
         ]);
+
+        // Do not accept ownership from mass assignment.
+        $product->company_id = $companyId;
+        $product->save();
 
         return response()->json([
             'product' => $product,
         ]);
     }
 
-    public function get($id)
-    {
-        $product = Product::find($id);
+    public function get(
+        Request $request,
+        $id,
+        TenantContext $tenantContext
+    ) {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id')
+        );
+
+        $query = Product::query();
+
+        $this->scopeProductsForCompany(
+            $query,
+            $companyId
+        );
+
+        $product = $query->find($id);
 
         if (!$product) {
             return response()->json([
@@ -53,9 +113,27 @@ class ProductController extends Controller
         return response()->json($product, 200);
     }
 
-    public function update(Request $request, $id)
-    {
-        $product = Product::find($id);
+    public function update(
+        Request $request,
+        $id,
+        TenantContext $tenantContext
+    ) {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->input(
+                'company_id',
+                $request->query('company_id')
+            )
+        );
+
+        $query = Product::query();
+
+        $this->scopeProductsForCompany(
+            $query,
+            $companyId
+        );
+
+        $product = $query->find($id);
 
         if (!$product) {
             return response()->json([
@@ -67,6 +145,9 @@ class ProductController extends Controller
             'name' => 'required|string|max:255',
             'description' => 'required|string',
             'category_id' => 'required|exists:categories,id',
+            'price' => 'nullable|numeric|min:0',
+            'quantity' => 'nullable|integer|min:0',
+            'batch_id' => 'nullable|exists:batches,id',
         ]);
 
         $product->update([
@@ -82,9 +163,24 @@ class ProductController extends Controller
         return response()->json($product, 200);
     }
 
-    public function delete($id)
-    {
-        $product = Product::find($id);
+    public function delete(
+        Request $request,
+        $id,
+        TenantContext $tenantContext
+    ) {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id')
+        );
+
+        $query = Product::query();
+
+        $this->scopeProductsForCompany(
+            $query,
+            $companyId
+        );
+
+        $product = $query->find($id);
 
         if (!$product) {
             return response()->json([
@@ -338,9 +434,35 @@ class ProductController extends Controller
         return response()->json($products, 200);
     }
 
-    public function updateFinalCostProduct(Request $request)
-    {
-        $product = Product::find($request->input('id'));
+    public function updateFinalCostProduct(
+        Request $request,
+        TenantContext $tenantContext
+    ) {
+        $request->validate([
+            'id' => 'required|integer',
+            'final_cost' => 'required|numeric|min:0',
+            'wholesale_final_cost' =>
+                'required|numeric|min:0',
+        ]);
+
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->input(
+                'company_id',
+                $request->query('company_id')
+            )
+        );
+
+        $query = Product::query();
+
+        $this->scopeProductsForCompany(
+            $query,
+            $companyId
+        );
+
+        $product = $query->find(
+            $request->input('id')
+        );
 
         if (!$product) {
             return response()->json([
@@ -358,9 +480,9 @@ class ProductController extends Controller
     }
 
     /**
-     * During Phase 2E, null-company products are retained as legacy shared
-     * records because historical ProductController::create() did not always
-     * persist company_id. Explicitly-owned products remain tenant isolated.
+     * During the compatibility window, null-company products remain readable
+     * alongside tenant-owned products. Explicitly-owned products from another
+     * company are always excluded.
      */
     private function scopeProductsForCompany(
         Builder $query,

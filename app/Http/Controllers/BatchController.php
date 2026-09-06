@@ -2,139 +2,242 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-
 use App\Models\Batch;
-use Illuminate\Support\Facades\DB;
+use App\Services\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 
 class BatchController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index()
+    public function index(Request $request, TenantContext $tenantContext)
     {
-        $batches = Batch::all();
-        return response()->json($batches);
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id')
+        );
+
+        $query = Batch::query();
+        $this->scopeReadableBatches($query, $companyId);
+
+        return response()->json($query->get());
     }
 
-    /**
-     * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
-    public function store(Request $request)
+    public function store(Request $request, TenantContext $tenantContext)
     {
         $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:255',
             'quantity' => 'required|integer|min:1',
-            'status' => 'required|in:created,received', // Validar que el status sea válido
+            'status' => 'required|in:created,received',
             'order_creation_date' => 'required|date',
         ]);
 
-        // Verificar si ya existe un lote para el producto y el almacén especificados
-        $batch = Batch::where('name', $request->input('name'))
-            ->first();
-        if ($batch) {
-            // Si ya existe, devolver un mensaje de error
-            return response()->json(['message' => 'Ya existe un lote con este nombre'], 400);
-        } else {
-            // Crear el nuevo lote
-            $batch = Batch::create([
-                'name' => $request->input('name'),
-                'description' => $request->input('description'),
-                'quantity' => $request->input('quantity'),
-                'status' => $request->input('status'), // Guardar el campo status
-                'order_creation_date' => $request->input('order_creation_date'),
-            ]);
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->input('company_id'),
+            true
+        );
+
+        if (Batch::where('name', $request->input('name'))->exists()) {
+            return response()->json([
+                'message' => 'Ya existe un lote con este nombre',
+            ], 400);
         }
 
-        // Responder con el lote creado y el código de estado 201 (Recurso creado)  
+        $batch = Batch::create([
+            'name' => $request->input('name'),
+            'description' => $request->input('description'),
+            'quantity' => $request->input('quantity'),
+            'status' => $request->input('status'),
+            'order_creation_date' => $request->input('order_creation_date'),
+        ]);
+
+        $batch->company_id = $companyId;
+        $batch->save();
+
         return response()->json($batch, 201);
     }
 
-    /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
+    public function show(Request $request, $id, TenantContext $tenantContext)
     {
-        //
-    }
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id')
+        );
 
-    /**
-     * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function update(Request $request, $id)
-    {
-        $batch = Batch::find($id);
+        $query = Batch::query();
+        $this->scopeReadableBatches($query, $companyId);
+
+        $batch = $query->find($id);
 
         if (!$batch) {
-            return response()->json(['message' => 'Lote no encontrado'], 404);
+            return response()->json([
+                'message' => 'Lote no encontrado',
+            ], 404);
         }
 
-        // Validar los datos recibidos
+        return response()->json($batch, 200);
+    }
+
+    public function update(
+        Request $request,
+        $id,
+        TenantContext $tenantContext
+    ) {
         $request->validate([
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:255',
             'quantity' => 'required|integer|min:1',
-            'status' => 'required|in:created,received', // Validar que el status sea válido
+            'status' => 'required|in:created,received',
             'order_creation_date' => 'required|date',
         ]);
 
-        // Actualizar los datos del lote
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->input(
+                'company_id',
+                $request->query('company_id')
+            ),
+            true
+        );
+
+        $query = Batch::query();
+        $this->scopeOwnedBatches($query, $companyId);
+
+        $batch = $query->find($id);
+
+        if (!$batch) {
+            return response()->json([
+                'message' => 'Lote no encontrado',
+            ], 404);
+        }
+
+        $nameExists = Batch::where(
+            'name',
+            $request->input('name')
+        )
+            ->where('id', '<>', $batch->id)
+            ->exists();
+
+        if ($nameExists) {
+            return response()->json([
+                'message' => 'Ya existe un lote con este nombre',
+            ], 400);
+        }
+
         $batch->update([
             'name' => $request->input('name'),
             'description' => $request->input('description'),
             'quantity' => $request->input('quantity'),
-            'status' => $request->input('status'), // Actualizar el campo status
+            'status' => $request->input('status'),
             'order_creation_date' => $request->input('order_creation_date'),
         ]);
 
         return response()->json($batch, 200);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy($id)
-    {
-        $batch = Batch::find($id);
+    public function destroy(
+        Request $request,
+        $id,
+        TenantContext $tenantContext
+    ) {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id'),
+            true
+        );
+
+        $query = Batch::query();
+        $this->scopeOwnedBatches($query, $companyId);
+
+        $batch = $query->find($id);
 
         if (!$batch) {
-            return response()->json(['message' => 'Lote no encontrado'], 404);
+            return response()->json([
+                'message' => 'Lote no encontrado',
+            ], 404);
         }
 
         $batch->delete();
 
-        return response()->json(['message' => 'Lote eliminado correctamente'], 200);
+        return response()->json([
+            'message' => 'Lote eliminado correctamente',
+        ], 200);
     }
 
-    public function getBatchesReceived()
-    {
-        $batches = DB::table('batches')
-            ->where('status', '=', 'received')
-            ->get();
-        return response()->json($batches);
+    public function getBatchesReceived(
+        Request $request,
+        TenantContext $tenantContext
+    ) {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id')
+        );
+
+        $query = Batch::query()
+            ->where('status', 'received');
+
+        $this->scopeReadableBatches($query, $companyId);
+
+        return response()->json($query->get());
     }
 
-    public function getBatchesWithProducts()
-    {
-        $batches = Batch::with('products')->get();
+    public function getBatchesWithProducts(
+        Request $request,
+        TenantContext $tenantContext
+    ) {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id')
+        );
 
-        return response()->json($batches);
+        $query = Batch::query()
+            ->with([
+                'products' => function ($productQuery) use ($companyId) {
+                    if ($companyId === null) {
+                        return;
+                    }
+
+                    $productQuery->where(
+                        function ($tenantQuery) use ($companyId) {
+                            $tenantQuery
+                                ->where('company_id', $companyId)
+                                ->orWhereNull('company_id');
+                        }
+                    );
+                },
+            ]);
+
+        $this->scopeReadableBatches($query, $companyId);
+
+        return response()->json($query->get());
+    }
+
+    private function scopeReadableBatches(
+        Builder $query,
+        ?int $companyId
+    ): Builder {
+        if ($companyId === null) {
+            return $query;
+        }
+
+        return $query->where(
+            function (Builder $tenantQuery) use ($companyId) {
+                $tenantQuery
+                    ->where('company_id', $companyId)
+                    ->orWhereNull('company_id');
+            }
+        );
+    }
+
+    private function scopeOwnedBatches(
+        Builder $query,
+        ?int $companyId
+    ): Builder {
+        if ($companyId === null) {
+            return $query;
+        }
+
+        return $query->where('company_id', $companyId);
     }
 }

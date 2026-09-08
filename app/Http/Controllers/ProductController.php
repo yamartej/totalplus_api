@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Batch;
 use App\Models\Product;
 use App\Services\Inventory\InventoryCompatibilityService;
 use App\Services\Tenancy\TenantContext;
@@ -269,22 +270,94 @@ class ProductController extends Controller
         return response()->json($products, 200);
     }
 
-    public function updateBatchForProducts(Request $request)
-    {
+    public function updateBatchForProducts(
+        Request $request,
+        TenantContext $tenantContext
+    ) {
         $request->validate([
-            'product_ids' => 'required|array',
-            'product_ids.*' => 'exists:products,id',
+            'product_ids' => 'required|array|min:1',
+            'product_ids.*' => 'required|integer|distinct',
+            'batch_id' => 'required|integer',
         ]);
 
-        Product::whereIn('id', $request->input('product_ids'))
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->input(
+                'company_id',
+                $request->query('company_id')
+            ),
+            true
+        );
+
+        /*
+         * Assignment is a write operation, so compatibility NULL ownership
+         * is intentionally not accepted. The destination batch must belong
+         * exactly to the resolved tenant.
+         */
+        $batchQuery = Batch::query();
+
+        if ($companyId !== null) {
+            $batchQuery->where(
+                'company_id',
+                $companyId
+            );
+        }
+
+        $batch = $batchQuery->find(
+            $request->input('batch_id')
+        );
+
+        if (!$batch) {
+            return response()->json([
+                'message' => 'Lote no encontrado',
+            ], 404);
+        }
+
+        $productIds = collect(
+            $request->input('product_ids')
+        )
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $productQuery = Product::query()
+            ->whereIn('id', $productIds->all());
+
+        $this->scopeOwnedProductsForCompany(
+            $productQuery,
+            $companyId
+        );
+
+        /*
+         * Validate the complete set before performing any update. This keeps
+         * mixed-tenant requests atomic: either every product belongs to the
+         * tenant or nothing changes.
+         */
+        $ownedProductIds = $productQuery
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id);
+
+        if ($ownedProductIds->count() !== $productIds->count()) {
+            return response()->json([
+                'message' => 'Producto no encontrado',
+            ], 404);
+        }
+
+        Product::query()
+            ->whereIn('id', $productIds->all())
             ->update([
-                'batch_id' => $request->input('batch_id'),
+                'batch_id' => $batch->id,
             ]);
 
-        $updatedProducts = Product::whereIn(
-            'id',
-            $request->input('product_ids')
-        )->get();
+        $updatedQuery = Product::query()
+            ->whereIn('id', $productIds->all());
+
+        $this->scopeOwnedProductsForCompany(
+            $updatedQuery,
+            $companyId
+        );
+
+        $updatedProducts = $updatedQuery->get();
 
         return response()->json([
             'message' =>
@@ -293,15 +366,93 @@ class ProductController extends Controller
         ], 200);
     }
 
-    public function getProductsWithBatchAndStatus()
-    {
-        $products = Product::whereHas(
-            'batches',
-            function ($query) {
-                $query->where('status', 'created');
-            }
-        )
-            ->with('batches', 'inventory')
+    public function getProductsWithBatchAndStatus(
+        Request $request,
+        TenantContext $tenantContext
+    ) {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id')
+        );
+
+        $query = Product::query();
+
+        if ($companyId === null) {
+            $query->whereHas(
+                'batches',
+                function ($batchQuery) {
+                    $batchQuery->where(
+                        'status',
+                        'created'
+                    );
+                }
+            );
+        } else {
+            /*
+             * A visible association must have compatible ownership on both
+             * sides. Tenant-owned products pair only with tenant-owned
+             * batches. Legacy products pair only with legacy NULL batches.
+             * This also hides malformed historical cross-company links.
+             */
+            $query->where(
+                function (Builder $associationQuery) use ($companyId) {
+                    $associationQuery
+                        ->where(
+                            function (Builder $ownedQuery) use ($companyId) {
+                                $ownedQuery
+                                    ->where(
+                                        'company_id',
+                                        $companyId
+                                    )
+                                    ->whereHas(
+                                        'batches',
+                                        function ($batchQuery) use ($companyId) {
+                                            $batchQuery
+                                                ->where(
+                                                    'status',
+                                                    'created'
+                                                )
+                                                ->where(
+                                                    'company_id',
+                                                    $companyId
+                                                );
+                                        }
+                                    );
+                            }
+                        )
+                        ->orWhere(
+                            function (Builder $legacyQuery) {
+                                $legacyQuery
+                                    ->whereNull('company_id')
+                                    ->whereHas(
+                                        'batches',
+                                        function ($batchQuery) {
+                                            $batchQuery
+                                                ->where(
+                                                    'status',
+                                                    'created'
+                                                )
+                                                ->whereNull(
+                                                    'company_id'
+                                                );
+                                        }
+                                    );
+                            }
+                        );
+                }
+            );
+        }
+
+        $inventoryScope = $this->inventoryCompanyScope(
+            $companyId
+        );
+
+        $products = $query
+            ->with([
+                'batches',
+                'inventory' => $inventoryScope,
+                'inventory.warehouse',
+            ])
             ->get();
 
         return response()->json($products, 200);
@@ -498,6 +649,25 @@ class ProductController extends Controller
                     ->where('company_id', $companyId)
                     ->orWhereNull('company_id');
             }
+        );
+    }
+
+    /**
+     * Writes require exact tenant ownership. Legacy NULL-company products are
+     * readable during the compatibility window but are not writable through
+     * tenant-specific assignment operations.
+     */
+    private function scopeOwnedProductsForCompany(
+        Builder $query,
+        ?int $companyId
+    ): Builder {
+        if ($companyId === null) {
+            return $query;
+        }
+
+        return $query->where(
+            'company_id',
+            $companyId
         );
     }
 

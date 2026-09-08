@@ -38,13 +38,22 @@ class BatchController extends Controller
             true
         );
 
-        if (Batch::where('name', $request->input('name'))->exists()) {
+        if (
+            $this->batchNameExistsForCompany(
+                $request->input('name'),
+                $companyId
+            )
+        ) {
             return response()->json([
                 'message' => 'Ya existe un lote con este nombre',
             ], 400);
         }
 
-        $batch = Batch::create([
+        /*
+         * Set ownership before the first INSERT so the database-level
+         * composite unique key (company_id, name) protects concurrent writes.
+         */
+        $batch = new Batch([
             'name' => $request->input('name'),
             'description' => $request->input('description'),
             'quantity' => $request->input('quantity'),
@@ -112,14 +121,13 @@ class BatchController extends Controller
             ], 404);
         }
 
-        $nameExists = Batch::where(
-            'name',
-            $request->input('name')
-        )
-            ->where('id', '<>', $batch->id)
-            ->exists();
-
-        if ($nameExists) {
+        if (
+            $this->batchNameExistsForCompany(
+                $request->input('name'),
+                $companyId,
+                (int) $batch->id
+            )
+        ) {
             return response()->json([
                 'message' => 'Ya existe un lote con este nombre',
             ], 400);
@@ -211,6 +219,27 @@ class BatchController extends Controller
         $this->scopeReadableBatches($query, $companyId);
 
         return response()->json($query->get());
+    }
+
+    private function batchNameExistsForCompany(
+        string $name,
+        ?int $companyId,
+        ?int $ignoreId = null
+    ): bool {
+        $query = Batch::query()
+            ->where('name', $name);
+
+        if ($companyId === null) {
+            $query->whereNull('company_id');
+        } else {
+            $query->where('company_id', $companyId);
+        }
+
+        if ($ignoreId !== null) {
+            $query->where('id', '<>', $ignoreId);
+        }
+
+        return $query->exists();
     }
 
     private function scopeReadableBatches(

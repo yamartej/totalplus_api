@@ -408,6 +408,9 @@ class InventoryCompatibilityPhase2Test extends TestCase
             'quantity' => '100',
         ]);
 
+        $batch->company_id = $ctx['company']->id;
+        $batch->save();
+
         Cost::create([
             'amount' => 100,
             'description' => 'Freight',

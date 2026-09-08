@@ -481,7 +481,13 @@ class ProductController extends Controller
 
         $query = Product::query();
 
-        $this->scopeProductsForCompany(
+        /*
+         * Cost rows must represent a compatible product/batch ownership pair.
+         * Tenant-owned products may use only tenant-owned batches, while
+         * legacy NULL-company products remain readable only with legacy
+         * NULL-company batches during the compatibility window.
+         */
+        $this->scopeProductsWithCompatibleBatchForCompany(
             $query,
             $companyId
         );
@@ -524,10 +530,24 @@ class ProductController extends Controller
                             $product->batch_id
                         );
 
-                    $this->scopeProductsForCompany(
-                        $totalQuantityQuery,
-                        $companyId
-                    );
+                    /*
+                     * The denominator follows the same ownership side as the
+                     * visible product/batch association. This prevents legacy
+                     * NULL products from diluting an owned batch, and prevents
+                     * tenant-owned products from diluting a legacy batch.
+                     */
+                    if ($companyId !== null) {
+                        if ($product->company_id === null) {
+                            $totalQuantityQuery->whereNull(
+                                'company_id'
+                            );
+                        } else {
+                            $totalQuantityQuery->where(
+                                'company_id',
+                                $companyId
+                            );
+                        }
+                    }
 
                     $totalQuantity = $totalQuantityQuery
                         ->sum('quantity');
@@ -606,7 +626,12 @@ class ProductController extends Controller
 
         $query = Product::query();
 
-        $this->scopeProductsForCompany(
+        /*
+         * Final prices are a write operation. Legacy NULL-company products
+         * remain readable for compatibility but are not writable by a
+         * company-bound tenant until ownership is explicit.
+         */
+        $this->scopeOwnedProductsForCompany(
             $query,
             $companyId
         );
@@ -648,6 +673,58 @@ class ProductController extends Controller
                 $tenantQuery
                     ->where('company_id', $companyId)
                     ->orWhereNull('company_id');
+            }
+        );
+    }
+
+    /**
+     * Cost/read associations must preserve ownership compatibility between
+     * the product row and its batch. Explicit tenant rows pair with the same
+     * tenant; legacy NULL rows pair only with legacy NULL batches.
+     */
+    private function scopeProductsWithCompatibleBatchForCompany(
+        Builder $query,
+        ?int $companyId
+    ): Builder {
+        if ($companyId === null) {
+            return $query;
+        }
+
+        return $query->where(
+            function (Builder $associationQuery) use ($companyId) {
+                $associationQuery
+                    ->where(
+                        function (Builder $ownedQuery) use ($companyId) {
+                            $ownedQuery
+                                ->where(
+                                    'company_id',
+                                    $companyId
+                                )
+                                ->whereHas(
+                                    'batches',
+                                    function ($batchQuery) use ($companyId) {
+                                        $batchQuery->where(
+                                            'company_id',
+                                            $companyId
+                                        );
+                                    }
+                                );
+                        }
+                    )
+                    ->orWhere(
+                        function (Builder $legacyQuery) {
+                            $legacyQuery
+                                ->whereNull('company_id')
+                                ->whereHas(
+                                    'batches',
+                                    function ($batchQuery) {
+                                        $batchQuery->whereNull(
+                                            'company_id'
+                                        );
+                                    }
+                                );
+                        }
+                    );
             }
         );
     }

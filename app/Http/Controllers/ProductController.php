@@ -44,7 +44,7 @@ class ProductController extends Controller
             'category_id' => 'required|exists:categories,id',
             'price' => 'nullable|numeric|min:0',
             'quantity' => 'nullable|integer|min:0',
-            'batch_id' => 'nullable|exists:batches,id',
+            'batch_id' => 'nullable|integer',
             'final_cost' => 'nullable|numeric|min:0',
             'wholesale_final_cost' => 'nullable|numeric|min:0',
         ]);
@@ -55,6 +55,20 @@ class ProductController extends Controller
             true
         );
 
+        $batchId = $this->resolveWritableBatchId(
+            $request->input('batch_id'),
+            $companyId
+        );
+
+        if (
+            $request->input('batch_id') !== null
+            && $batchId === null
+        ) {
+            return response()->json([
+                'message' => 'Lote no encontrado',
+            ], 404);
+        }
+
         $product = Product::create([
             'name' => $request->input('name'),
             'description' => $request->input('description'),
@@ -62,7 +76,7 @@ class ProductController extends Controller
             'image' => $request->input('image'),
             'category_id' => $request->input('category_id'),
             'quantity' => $request->input('quantity'),
-            'batch_id' => $request->input('batch_id'),
+            'batch_id' => $batchId,
 
             // These columns are NOT NULL in the legacy schema and the
             // current frontend creates products before retail/wholesale
@@ -129,7 +143,12 @@ class ProductController extends Controller
 
         $query = Product::query();
 
-        $this->scopeProductsForCompany(
+        /*
+         * Product mutation requires exact ownership. Legacy NULL-company
+         * products remain readable for compatibility, but a company tenant
+         * cannot claim or mutate them through a normal update.
+         */
+        $this->scopeOwnedProductsForCompany(
             $query,
             $companyId
         );
@@ -148,8 +167,22 @@ class ProductController extends Controller
             'category_id' => 'required|exists:categories,id',
             'price' => 'nullable|numeric|min:0',
             'quantity' => 'nullable|integer|min:0',
-            'batch_id' => 'nullable|exists:batches,id',
+            'batch_id' => 'nullable|integer',
         ]);
+
+        $batchId = $this->resolveWritableBatchId(
+            $request->input('batch_id'),
+            $companyId
+        );
+
+        if (
+            $request->input('batch_id') !== null
+            && $batchId === null
+        ) {
+            return response()->json([
+                'message' => 'Lote no encontrado',
+            ], 404);
+        }
 
         $product->update([
             'name' => $request->input('name'),
@@ -158,7 +191,7 @@ class ProductController extends Controller
             'image' => $request->input('image'),
             'category_id' => $request->input('category_id'),
             'quantity' => $request->input('quantity'),
-            'batch_id' => $request->input('batch_id'),
+            'batch_id' => $batchId,
         ]);
 
         return response()->json($product, 200);
@@ -176,7 +209,11 @@ class ProductController extends Controller
 
         $query = Product::query();
 
-        $this->scopeProductsForCompany(
+        /*
+         * Deletion is a write operation, so compatibility NULL ownership is
+         * not accepted for a company-bound tenant.
+         */
+        $this->scopeOwnedProductsForCompany(
             $query,
             $companyId
         );
@@ -653,6 +690,37 @@ class ProductController extends Controller
         ]);
 
         return response()->json($product, 200);
+    }
+
+    /**
+     * Resolve a writable batch using exact tenant ownership.
+     *
+     * A NULL batch_id means "no batch" and is valid. Legacy NULL-company
+     * batches are readable for compatibility but cannot receive new writes
+     * from a company-bound tenant.
+     */
+    private function resolveWritableBatchId(
+        $batchId,
+        ?int $companyId
+    ): ?int {
+        if ($batchId === null) {
+            return null;
+        }
+
+        $query = Batch::query();
+
+        if ($companyId !== null) {
+            $query->where(
+                'company_id',
+                $companyId
+            );
+        }
+
+        $batch = $query->find($batchId);
+
+        return $batch
+            ? (int) $batch->id
+            : null;
     }
 
     /**

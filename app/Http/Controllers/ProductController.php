@@ -138,7 +138,8 @@ class ProductController extends Controller
             $request->input(
                 'company_id',
                 $request->query('company_id')
-            )
+            ),
+            true
         );
 
         $query = Product::query();
@@ -204,7 +205,8 @@ class ProductController extends Controller
     ) {
         $companyId = $tenantContext->resolveCompanyId(
             $request->user(),
-            $request->query('company_id')
+            $request->query('company_id'),
+            true
         );
 
         $query = Product::query();
@@ -658,7 +660,8 @@ class ProductController extends Controller
             $request->input(
                 'company_id',
                 $request->query('company_id')
-            )
+            ),
+            true
         );
 
         $query = Product::query();

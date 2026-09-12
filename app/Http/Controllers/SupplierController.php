@@ -2,50 +2,108 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-
 use App\Models\Supplier;
-use Illuminate\Http\Response;
+use App\Services\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 
 class SupplierController extends Controller
 {
-    public function index()
-    {
-        $suppliers = Supplier::all();
-        return response()->json($suppliers);
+    public function index(
+        Request $request,
+        TenantContext $tenantContext
+    ) {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id')
+        );
+
+        $query = Supplier::query();
+
+        $this->scopeSuppliersForCompany(
+            $query,
+            $companyId
+        );
+
+        return response()->json($query->get());
     }
 
-    public function store(Request $request)
-    {
+    public function store(
+        Request $request,
+        TenantContext $tenantContext
+    ) {
         $request->validate([
             'name' => 'required|string|max:255',
         ]);
 
-        $sales = Supplier::create([
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->input('company_id'),
+            true
+        );
+
+        $supplier = Supplier::create([
             'name' => $request->input('name'),
             'phone' => $request->input('phone'),
         ]);
 
-        return response()->json($sales, 201);
+        // Ownership is assigned explicitly, never by mass assignment.
+        $supplier->company_id = $companyId;
+        $supplier->save();
+
+        return response()->json($supplier, 201);
     }
 
-    public function show($id)
-    {
-        $supplier = Supplier::find($id);
+    public function show(
+        Request $request,
+        $id,
+        TenantContext $tenantContext
+    ) {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id')
+        );
+
+        $query = Supplier::query();
+
+        $this->scopeSuppliersForCompany(
+            $query,
+            $companyId
+        );
+
+        $supplier = $query->find($id);
 
         if (!$supplier) {
-            return response()->json(['message' => 'Proveedor no encontrado'], 404);
+            return response()->json([
+                'message' => 'Proveedor no encontrado',
+            ], 404);
         }
 
         return response()->json($supplier, 200);
     }
 
-    public function put(Request $request, $id)
-    {
-        $supplier = Supplier::find($id);
+    public function put(
+        Request $request,
+        $id,
+        TenantContext $tenantContext
+    ) {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->input(
+                'company_id',
+                $request->query('company_id')
+            ),
+            true
+        );
+
+        $supplier = Supplier::query()
+            ->where('company_id', $companyId)
+            ->find($id);
 
         if (!$supplier) {
-            return response()->json(['message' => 'Proveedor no encontrado'], 404);
+            return response()->json([
+                'message' => 'Proveedor no encontrado',
+            ], 404);
         }
 
         $request->validate([
@@ -60,16 +118,52 @@ class SupplierController extends Controller
         return response()->json($supplier, 200);
     }
 
-    public function destroy($id)
-    {
-        $supplier = Supplier::find($id);
+    public function destroy(
+        Request $request,
+        $id,
+        TenantContext $tenantContext
+    ) {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->input(
+                'company_id',
+                $request->query('company_id')
+            ),
+            true
+        );
+
+        $supplier = Supplier::query()
+            ->where('company_id', $companyId)
+            ->find($id);
 
         if (!$supplier) {
-            return response()->json(['message' => 'Proveedor no encontrado'], 404);
+            return response()->json([
+                'message' => 'Proveedor no encontrado',
+            ], 404);
         }
 
         $supplier->delete();
 
         return response()->json(null, 204);
+    }
+
+    private function scopeSuppliersForCompany(
+        Builder $query,
+        ?int $companyId
+    ): void {
+        if ($companyId === null) {
+            return;
+        }
+
+        /*
+         * Compatibility read:
+         * company-owned rows plus historical NULL-company rows.
+         * Mutations use exact ownership and cannot claim legacy rows.
+         */
+        $query->where(function (Builder $builder) use ($companyId) {
+            $builder
+                ->where('company_id', $companyId)
+                ->orWhereNull('company_id');
+        });
     }
 }

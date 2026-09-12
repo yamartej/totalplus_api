@@ -13,6 +13,7 @@ use App\Http\Controllers\InventoryTransferController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\PurchaseReceiptController;
 use App\Http\Controllers\PurchaseOrderProductController;
 use App\Http\Controllers\RolesController;
 use App\Http\Controllers\SaleController;
@@ -291,6 +292,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Purchase orders
     Route::get('/purchaseorders', [PurchaseOrderController::class, 'index'])->middleware('auth:sanctum')->middleware('permission:purchaseorders.view');
     Route::post('/purchaseorders', [PurchaseOrderController::class, 'store'])->middleware('auth:sanctum')->middleware('permission:purchaseorders.create');
+    Route::post('/purchaseorders/{id}/receive', [PurchaseReceiptController::class, 'store'])->middleware('auth:sanctum')->middleware('permission:purchaseorders.update');
     Route::put('/purchaseorders/{id}', [PurchaseOrderController::class, 'put'])->middleware('auth:sanctum')->middleware('permission:purchaseorders.update');
     Route::get('/purchaseorders/{id}', [PurchaseOrderController::class, 'show'])->middleware('auth:sanctum')->middleware('permission:purchaseorders.view');
     Route::delete('/purchaseorders/{id}', [PurchaseOrderController::class, 'destroy'])->middleware('auth:sanctum')->middleware('permission:purchaseorders.delete');

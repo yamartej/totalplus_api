@@ -2,20 +2,38 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-
+use App\Models\Product;
+use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderProduct;
+use App\Services\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\Request;
 
 class PurchaseOrderProductController extends Controller
 {
-    public function index()
-    {
-        $purchase_order_products = PurchaseOrderProduct::all();
-        return response()->json($purchase_order_products);
+    public function index(
+        Request $request,
+        TenantContext $tenantContext
+    ) {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id')
+        );
+
+        $query = PurchaseOrderProduct::query();
+
+        $this->scopeLinesForCompany(
+            $query,
+            $companyId
+        );
+
+        return response()->json($query->get());
     }
 
-    public function store(Request $request)
-    {
+    public function store(
+        Request $request,
+        TenantContext $tenantContext
+    ) {
         $request->validate([
             'purchase_order_id' => 'required|exists:purchase_orders,id',
             'product_id' => 'required|exists:products,id',
@@ -23,57 +41,181 @@ class PurchaseOrderProductController extends Controller
             'quantity' => 'required|numeric|min:0',
         ]);
 
-        $purchase_order_products = PurchaseOrderProduct::create([
-            'purchase_order_id' => $request->input('purchase_order_id'),
-            'product_id' => $request->input('product_id'),
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->input('company_id'),
+            true
+        );
+
+        /*
+         * A writable purchase line belongs to the tenant through its
+         * purchase order. Legacy NULL-company orders remain readable only.
+         */
+        $purchaseOrder = PurchaseOrder::query()
+            ->where('company_id', $companyId)
+            ->find($request->input('purchase_order_id'));
+
+        if (!$purchaseOrder) {
+            return response()->json([
+                'message' => 'Orden de compra no encontrada',
+            ], 404);
+        }
+
+        /*
+         * Product compatibility matches the inventory/sales contract:
+         * an owned product is writable, and a legacy NULL-company product
+         * can still participate in a new tenant-owned transaction.
+         * An explicitly foreign product is rejected.
+         */
+        $product = Product::query()
+            ->where(function (Builder $query) use ($companyId) {
+                $query
+                    ->where('company_id', $companyId)
+                    ->orWhereNull('company_id');
+            })
+            ->find($request->input('product_id'));
+
+        if (!$product) {
+            return response()->json([
+                'message' => 'Producto no encontrado',
+            ], 404);
+        }
+
+        $line = PurchaseOrderProduct::create([
+            'purchase_order_id' => $purchaseOrder->id,
+            'product_id' => $product->id,
             'price' => $request->input('price'),
             'quantity' => $request->input('quantity'),
         ]);
 
-        return response()->json($purchase_order_products, 201);
+        return response()->json($line, 201);
     }
 
-    public function show($id)
-    {
-        $purchase_order_products = PurchaseOrderProduct::find($id);
+    public function show(
+        Request $request,
+        $id,
+        TenantContext $tenantContext
+    ) {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id')
+        );
 
-        if (!$purchase_order_products) {
-            return response()->json(['message' => 'Producto de Orden de compra no encontrada'], 404);
+        $query = PurchaseOrderProduct::query();
+
+        $this->scopeLinesForCompany(
+            $query,
+            $companyId
+        );
+
+        $line = $query->find($id);
+
+        if (!$line) {
+            return response()->json([
+                'message' => 'Producto de Orden de compra no encontrada',
+            ], 404);
         }
 
-        return response()->json($purchase_order_products, 200);
+        return response()->json($line, 200);
     }
 
-    public function put(Request $request, $id)
-    {
-        $purchase_order_products = PurchaseOrderProduct::find($id);
+    public function put(
+        Request $request,
+        $id,
+        TenantContext $tenantContext
+    ) {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->input(
+                'company_id',
+                $request->query('company_id')
+            ),
+            true
+        );
 
-        if (!$purchase_order_products) {
-            return response()->json(['message' => 'Orden de compra no encontrado'], 404);
+        $line = PurchaseOrderProduct::query()
+            ->whereHas(
+                'purchaseOrder',
+                function (Builder $order) use ($companyId) {
+                    $order->where('company_id', $companyId);
+                }
+            )
+            ->find($id);
+
+        if (!$line) {
+            return response()->json([
+                'message' => 'Orden de compra no encontrada',
+            ], 404);
         }
 
-        /*$request->validate([
-            'shipping_cost' => 'required|numeric|min:0',
-        ]);*/
+        $request->validate([
+            'price' => 'required|numeric|min:0',
+            'quantity' => 'required|numeric|min:0',
+        ]);
 
-        $purchase_order_products->update([
+        $line->update([
             'price' => $request->input('price'),
             'quantity' => $request->input('quantity'),
         ]);
 
-        return response()->json($purchase_order_products, 200);
+        return response()->json($line, 200);
     }
 
-    public function destroy($id)
-    {
-        $purchase_order_products = PurchaseOrderProduct::find($id);
+    public function destroy(
+        Request $request,
+        $id,
+        TenantContext $tenantContext
+    ) {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->input(
+                'company_id',
+                $request->query('company_id')
+            ),
+            true
+        );
 
-        if (!$purchase_order_products) {
-            return response()->json(['message' => 'Orden de compra no encontrado'], 404);
+        $line = PurchaseOrderProduct::query()
+            ->whereHas(
+                'purchaseOrder',
+                function (Builder $order) use ($companyId) {
+                    $order->where('company_id', $companyId);
+                }
+            )
+            ->find($id);
+
+        if (!$line) {
+            return response()->json([
+                'message' => 'Orden de compra no encontrada',
+            ], 404);
         }
 
-        $purchase_order_products->delete();
+        $line->delete();
 
         return response()->json(null, 204);
+    }
+
+    private function scopeLinesForCompany(
+        Builder $query,
+        ?int $companyId
+    ): void {
+        if ($companyId === null) {
+            return;
+        }
+
+        /*
+         * Line ownership is derived from purchase_orders.company_id.
+         * Reads preserve compatibility with historical NULL-company orders.
+         */
+        $query->whereHas(
+            'purchaseOrder',
+            function (Builder $order) use ($companyId) {
+                $order->where(function (Builder $scope) use ($companyId) {
+                    $scope
+                        ->where('company_id', $companyId)
+                        ->orWhereNull('company_id');
+                });
+            }
+        );
     }
 }

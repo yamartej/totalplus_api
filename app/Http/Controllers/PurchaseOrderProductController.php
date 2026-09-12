@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderProduct;
+use App\Models\PurchaseReceipt;
 use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -38,7 +39,7 @@ class PurchaseOrderProductController extends Controller
             'purchase_order_id' => 'required|exists:purchase_orders,id',
             'product_id' => 'required|exists:products,id',
             'price' => 'required|numeric|min:0',
-            'quantity' => 'required|numeric|min:0',
+            'quantity' => 'required|integer|min:1',
         ]);
 
         $companyId = $tenantContext->resolveCompanyId(
@@ -47,10 +48,6 @@ class PurchaseOrderProductController extends Controller
             true
         );
 
-        /*
-         * A writable purchase line belongs to the tenant through its
-         * purchase order. Legacy NULL-company orders remain readable only.
-         */
         $purchaseOrder = PurchaseOrder::query()
             ->where('company_id', $companyId)
             ->find($request->input('purchase_order_id'));
@@ -61,12 +58,10 @@ class PurchaseOrderProductController extends Controller
             ], 404);
         }
 
-        /*
-         * Product compatibility matches the inventory/sales contract:
-         * an owned product is writable, and a legacy NULL-company product
-         * can still participate in a new tenant-owned transaction.
-         * An explicitly foreign product is rejected.
-         */
+        if ($this->hasReceipt((int) $purchaseOrder->id)) {
+            return $this->immutableResponse();
+        }
+
         $product = Product::query()
             ->where(function (Builder $query) use ($companyId) {
                 $query
@@ -148,9 +143,13 @@ class PurchaseOrderProductController extends Controller
             ], 404);
         }
 
+        if ($this->hasReceipt((int) $line->purchase_order_id)) {
+            return $this->immutableResponse();
+        }
+
         $request->validate([
             'price' => 'required|numeric|min:0',
-            'quantity' => 'required|numeric|min:0',
+            'quantity' => 'required|integer|min:1',
         ]);
 
         $line->update([
@@ -190,9 +189,27 @@ class PurchaseOrderProductController extends Controller
             ], 404);
         }
 
+        if ($this->hasReceipt((int) $line->purchase_order_id)) {
+            return $this->immutableResponse();
+        }
+
         $line->delete();
 
         return response()->json(null, 204);
+    }
+
+    private function hasReceipt(int $purchaseOrderId): bool
+    {
+        return PurchaseReceipt::query()
+            ->where('purchase_order_id', $purchaseOrderId)
+            ->exists();
+    }
+
+    private function immutableResponse()
+    {
+        return response()->json([
+            'message' => 'La orden de compra ya fue recibida y es inmutable.',
+        ], 409);
     }
 
     private function scopeLinesForCompany(
@@ -203,10 +220,6 @@ class PurchaseOrderProductController extends Controller
             return;
         }
 
-        /*
-         * Line ownership is derived from purchase_orders.company_id.
-         * Reads preserve compatibility with historical NULL-company orders.
-         */
         $query->whereHas(
             'purchaseOrder',
             function (Builder $order) use ($companyId) {

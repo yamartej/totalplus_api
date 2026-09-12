@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseReceipt;
 use App\Models\Supplier;
 use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
@@ -44,11 +45,6 @@ class PurchaseOrderController extends Controller
             true
         );
 
-        /*
-         * New orders must reference a supplier owned by the same tenant.
-         * Legacy NULL-company suppliers stay readable for compatibility,
-         * but are not writable purchase-order dependencies.
-         */
         $supplier = Supplier::query()
             ->where('company_id', $companyId)
             ->find($request->input('supplier_id'));
@@ -65,7 +61,6 @@ class PurchaseOrderController extends Controller
             'tracking_number' => $request->input('tracking_number'),
         ]);
 
-        // Ownership is assigned explicitly, never by mass assignment.
         $purchaseOrder->company_id = $companyId;
         $purchaseOrder->save();
 
@@ -124,6 +119,10 @@ class PurchaseOrderController extends Controller
             ], 404);
         }
 
+        if ($this->hasReceipt((int) $purchaseOrder->id)) {
+            return $this->immutableResponse();
+        }
+
         $request->validate([
             'shipping_cost' => 'required|numeric|min:0',
         ]);
@@ -160,9 +159,27 @@ class PurchaseOrderController extends Controller
             ], 404);
         }
 
+        if ($this->hasReceipt((int) $purchaseOrder->id)) {
+            return $this->immutableResponse();
+        }
+
         $purchaseOrder->delete();
 
         return response()->json(null, 204);
+    }
+
+    private function hasReceipt(int $purchaseOrderId): bool
+    {
+        return PurchaseReceipt::query()
+            ->where('purchase_order_id', $purchaseOrderId)
+            ->exists();
+    }
+
+    private function immutableResponse()
+    {
+        return response()->json([
+            'message' => 'La orden de compra ya fue recibida y es inmutable.',
+        ], 409);
     }
 
     private function scopePurchaseOrdersForCompany(
@@ -173,11 +190,6 @@ class PurchaseOrderController extends Controller
             return;
         }
 
-        /*
-         * Compatibility read:
-         * company-owned rows plus historical NULL-company rows.
-         * Mutations use exact ownership and cannot claim legacy rows.
-         */
         $query->where(function (Builder $builder) use ($companyId) {
             $builder
                 ->where('company_id', $companyId)

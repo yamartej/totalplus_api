@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\PurchaseReceipt;
 use App\Models\Supplier;
 use App\Services\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
@@ -47,7 +48,6 @@ class SupplierController extends Controller
             'phone' => $request->input('phone'),
         ]);
 
-        // Ownership is assigned explicitly, never by mass assignment.
         $supplier->company_id = $companyId;
         $supplier->save();
 
@@ -142,6 +142,23 @@ class SupplierController extends Controller
             ], 404);
         }
 
+        $hasReceivedOrder = PurchaseReceipt::query()
+            ->whereHas(
+                'purchaseOrder',
+                function (Builder $order) use ($supplier, $companyId) {
+                    $order
+                        ->where('supplier_id', $supplier->id)
+                        ->where('company_id', $companyId);
+                }
+            )
+            ->exists();
+
+        if ($hasReceivedOrder) {
+            return response()->json([
+                'message' => 'El proveedor tiene compras recibidas y no puede eliminarse.',
+            ], 409);
+        }
+
         $supplier->delete();
 
         return response()->json(null, 204);
@@ -155,11 +172,6 @@ class SupplierController extends Controller
             return;
         }
 
-        /*
-         * Compatibility read:
-         * company-owned rows plus historical NULL-company rows.
-         * Mutations use exact ownership and cannot claim legacy rows.
-         */
         $query->where(function (Builder $builder) use ($companyId) {
             $builder
                 ->where('company_id', $companyId)

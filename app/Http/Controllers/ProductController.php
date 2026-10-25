@@ -543,12 +543,8 @@ class ProductController extends Controller
                 'inventories' => $inventoryScope,
                 'inventories.warehouse',
             ])
-            ->whereHas(
-                'batches.costs',
-                function ($costQuery) {
-                    $costQuery->where('amount', '>', 0);
-                }
-            )
+            // A product must remain visible for price preparation even
+            // when its batch has no additional shipping/commission costs.
             ->get()
             ->map(
                 function (Product $product) use (

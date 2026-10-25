@@ -114,6 +114,13 @@ class SaleTransactionService
                 $companyId
             );
 
+            // Financial payments must never be erased by the sales cascade.
+            if ($lockedSale->paymentDetails()->exists()) {
+                throw new DomainException(
+                    'Cannot void a sale with recorded payments. Reconcile or reverse the payments first.'
+                );
+            }
+
             $details = SaleDetail::query()
                 ->where('sale_id', $lockedSale->id)
                 ->orderBy('id')

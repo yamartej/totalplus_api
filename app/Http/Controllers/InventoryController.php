@@ -42,6 +42,30 @@ class InventoryController extends Controller
             });
         }
 
+        // Sales only: a positive warehouse balance does not make a product
+        // sellable until its own company's batch has been received and both
+        // retail and wholesale sale prices have been configured.
+        // Keep the unfiltered inventory contract for stock management.
+        if ($request->boolean('sellable')) {
+            $query->where('quantity', '>', 0)
+                ->whereHas('product', function ($productQuery) use ($companyId) {
+                    $productQuery
+                        ->where('final_cost', '>', 0)
+                        ->where('wholesale_final_cost', '>', 0)
+                        ->whereHas('batches', function ($batchQuery) use ($companyId) {
+                            $batchQuery->where('status', 'received');
+
+                            if ($companyId !== null) {
+                                $batchQuery->where('company_id', $companyId);
+                            }
+                        });
+
+                    if ($companyId !== null) {
+                        $productQuery->where('company_id', $companyId);
+                    }
+                });
+        }
+
         return response()->json($query->get());
     }
 

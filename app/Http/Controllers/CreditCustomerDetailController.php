@@ -2,130 +2,78 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\CreditCustomerDetail;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Http\Response;
+use App\Models\Customer;
+use App\Services\Tenancy\TenantContext;
+use Illuminate\Http\Request;
 
 class CreditCustomerDetailController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index()
+    private function customers(Request $request, TenantContext $tenant, $requestedCompanyId = null)
     {
-        $creditDetails = CreditCustomerDetail::with('customer')->get();
-
-        return response()->json($creditDetails);
+        return $tenant->scope(
+            Customer::query(),
+            $request->user(),
+            $requestedCompanyId !== null ? $requestedCompanyId : $request->input('company_id', $request->query('company_id'))
+        );
     }
 
-    /**
-     * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
-    public function store(Request $request)
+    private function details(Request $request, TenantContext $tenant, $companyId = null)
     {
-        $request->validate([
-            'amount' => 'required|numeric|min:0',
+        $customerIds = $this->customers($request, $tenant, $companyId)->select('customers.id');
+        return CreditCustomerDetail::query()->whereIn('customer_id', $customerIds)->with('customer');
+    }
+
+    public function index(Request $request, TenantContext $tenant)
+    {
+        return response()->json($this->details($request, $tenant)->get());
+    }
+
+    public function store(Request $request, TenantContext $tenant)
+    {
+        $data = $request->validate([
+            'customer_id' => 'required|integer|exists:customers,id',
+            'amount' => 'required|numeric|gt:0',
             'detail' => 'nullable|string|max:255',
             'payment_date' => 'required|date',
         ]);
-
-        $creditDetail = CreditCustomerDetail::create([
-            'customer_id' => $request->input('customer_id'),
-            'amount' => $request->input('amount'),
-            'payment_date' => $request->input('payment_date'),
-            'detail' => $request->input('detail'),
-        ]);
-
-        return response()->json($creditDetail, 201);
+        if (!$this->customers($request, $tenant)->whereKey($data['customer_id'])->exists()) {
+            return response()->json(['message' => 'Cliente no encontrado'], 404);
+        }
+        return response()->json(CreditCustomerDetail::create($data), 201);
     }
 
-    /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
+    public function destroy($id, Request $request, TenantContext $tenant)
     {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function update(Request $request, $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy($id)
-    {
-        $creditDetail = CreditCustomerDetail::find($id);
-
-        if (!$creditDetail) {
+        $detail = $this->details($request, $tenant)->whereKey($id)->first();
+        if (!$detail) {
             return response()->json(['message' => 'Detalle de crédito no encontrado'], 404);
         }
-
-        $creditDetail->delete();
-
+        $detail->delete();
         return response()->json(null, 204);
     }
 
-    public function paymentByDate(Request $request)
+    public function paymentByDate(Request $request, TenantContext $tenant)
     {
-        // Tomar en cuenta varios escenarios de fechas
-        // 1. Fecha de inicio y fin proporcionadas
-        // 2. Solo fecha de inicio proporcionada (hasta la fecha actual)
-        // 3. Solo fecha de fin proporcionada (desde el inicio del mes actual)
-        // 4. Ninguna fecha proporcionada (usar el mes actual)
-        $startDate = $request->input('start_date');
-        $endDate = $request->input('end_date');
-        $query = CreditCustomerDetail::with('customer');
-        if ($startDate && $endDate) {
-            $query->whereBetween('payment_date', [$startDate, $endDate]);
-        } elseif ($startDate) {
-            $query->where('payment_date', '>=', $startDate);
-        } elseif ($endDate) {
-            $query->where('payment_date', '<=', $endDate);
-        } else {
-            // Si no se proporcionan fechas, usar el mes actual
-            $query->whereMonth('payment_date', date('m'))
-                ->whereYear('payment_date', date('Y'));
+        $request->validate([
+            'start_date' => 'sometimes|nullable|date',
+            'end_date' => 'sometimes|nullable|date|after_or_equal:start_date',
+        ]);
+        $query = $this->details($request, $tenant);
+        if ($request->filled('start_date')) {
+            $query->whereDate('payment_date', '>=', $request->input('start_date'));
         }
-        $creditDetails = $query->get();
-        return response()->json($creditDetails);
+        if ($request->filled('end_date')) {
+            $query->whereDate('payment_date', '<=', $request->input('end_date'));
+        }
+        if (!$request->filled('start_date') && !$request->filled('end_date')) {
+            $query->whereMonth('payment_date', now()->month)->whereYear('payment_date', now()->year);
+        }
+        return response()->json($query->get());
     }
 
-    public function creditCustomerDetailsByCompany($id)
+    public function creditCustomerDetailsByCompany($id, Request $request, TenantContext $tenant)
     {
-        $companyId = $id;
-
-        if (!$companyId) {
-            return response()->json(['message' => 'Company-ID header is required'], 400);
-        }
-
-        $creditDetails = CreditCustomerDetail::whereHas(
-            'customer',
-            function ($query) use ($companyId) {
-                $query->where('company_id', $companyId);
-            }
-        )->with('customer')->get();
-        return response()->json($creditDetails);
+        return response()->json($this->details($request, $tenant, $id)->get());
     }
 }

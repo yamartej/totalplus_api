@@ -194,7 +194,7 @@ class SaleController extends Controller
             ], 422);
         } catch (\Throwable $e) {
             return response()->json([
-                'error' => $e->getMessage(),
+                'message' => 'No se pudo completar la operación.',
             ], 500);
         }
     }
@@ -239,13 +239,17 @@ class SaleController extends Controller
             ], 404);
         }
 
-        $sale->update([
-            'total_amount' => $request->input('total_amount'),
-            'credit_note_detail' =>
-                $request->input('credit_note_detail'),
-            'credit_note_date' =>
-                $request->input('credit_note_date', now()),
+        // The sale total is authoritative: only SaleTransactionService may recalculate it.
+        $request->validate([
+            'credit_note_detail' => 'sometimes|nullable|string|max:2000',
+            'credit_note_date' => 'sometimes|nullable|date',
+            'total_amount' => 'prohibited',
         ]);
+
+        $sale->update($request->only([
+            'credit_note_detail',
+            'credit_note_date',
+        ]));
 
         return response()->json($sale, 200);
     }
@@ -296,7 +300,7 @@ class SaleController extends Controller
             ], 422);
         } catch (\Throwable $e) {
             return response()->json([
-                'error' => $e->getMessage(),
+                'message' => 'No se pudo completar la operación.',
             ], 500);
         }
     }

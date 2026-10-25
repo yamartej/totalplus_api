@@ -83,6 +83,29 @@ class FinancialTenantGuardPhase12Test extends TestCase
         ])->assertStatus(422);
     }
 
+
+    public function test_void_refuses_sale_with_payments_and_preserves_ledger(): void
+    {
+        $a = Company::create(['name' => 'Paid Sale Company']);
+        $user = $this->actor($a, ['sales.delete']);
+        $sale = Sale::create([
+            'company_id' => $a->id,
+            'customer_id' => $this->customer($a, 60501)->id,
+            'total_amount' => 100,
+            'type_of_sale' => 'credit',
+        ]);
+        $payment = \App\Models\CreditDetail::create([
+            'sale_id' => $sale->id,
+            'amount' => 20,
+            'payment_date' => now(),
+            'detail' => 'Deposit',
+        ]);
+        Sanctum::actingAs($user);
+        $this->deleteJson('/api/sales/' . $sale->id)->assertStatus(422);
+        $this->assertDatabaseHas('sales', ['id' => $sale->id]);
+        $this->assertDatabaseHas('credit_details', ['id' => $payment->id]);
+    }
+
     public function test_sale_header_total_cannot_be_overwritten_directly(): void
     {
         $a = Company::create(['name' => 'Sale A']);

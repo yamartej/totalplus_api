@@ -16,9 +16,11 @@ class BatchController extends Controller
             $request->query('company_id')
         );
 
-        $query = Batch::query();
+        $query = Batch::query()->with('costs');
         $this->scopeReadableBatches($query, $companyId);
 
+        // Price management needs the complete batch list, including
+        // created batches and their shipping/commission cost details.
         return response()->json($query->get());
     }
 

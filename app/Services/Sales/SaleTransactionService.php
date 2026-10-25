@@ -414,6 +414,28 @@ class SaleTransactionService
                 );
             }
 
+            // Inventory assignment is not authorization to sell:
+            // the batch must first be received and explicitly priced.
+            $batch = $product->batches;
+            if (
+                !$batch
+                || $batch->status !== 'received'
+                || (int) $batch->company_id !== $companyId
+            ) {
+                throw new DomainException(
+                    'El producto debe pertenecer a un lote recibido de la empresa antes de venderse.'
+                );
+            }
+
+            if (
+                $this->moneyToCents($product->final_cost ?? 0) <= 0
+                || $this->moneyToCents($product->wholesale_final_cost ?? 0) <= 0
+            ) {
+                throw new DomainException(
+                    'Configura los precios de venta al detal y al mayor antes de vender el producto.'
+                );
+            }
+
             $requestedWarehouseId = null;
 
             if (
@@ -637,9 +659,9 @@ class SaleTransactionService
 
         $cents = $this->moneyToCents($price);
 
-        if ($cents < 0) {
+        if ($cents <= 0) {
             throw new DomainException(
-                'Sale price cannot be negative.'
+                'Sale price must be greater than zero.'
             );
         }
 

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Reengineering;
 
+use App\Models\Batch;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Inventory;
@@ -68,6 +69,22 @@ class SaleBaselineTest extends TestCase
             'final_cost' => 200,
             'wholesale_final_cost' => 180,
         ]);
+
+        $batch = Batch::create([
+            'name' => 'Phase 0 Sales Received ' . uniqid(),
+            'description' => 'Received batch for sales baseline',
+            'quantity' => 20,
+            'status' => 'received',
+            'order_creation_date' => '2026-10-25 12:00:00',
+        ]);
+        $batch->company_id = $company->id;
+        $batch->save();
+
+        foreach ([$productA, $productB] as $product) {
+            $product->company_id = $company->id;
+            $product->batch_id = $batch->id;
+            $product->save();
+        }
 
         $inventoryA = Inventory::create([
             'product_id' => $productA->id,

@@ -1,0 +1,15 @@
+name: Backend static validation
+on:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  php-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+      - name: PHP syntax validation
+        run: |
+          find app routes tests database/migrations -type f -name '*.php' -print0 | xargs -0 -n1 php -l

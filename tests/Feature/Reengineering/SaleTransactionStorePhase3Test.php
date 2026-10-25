@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Reengineering;
 
+use App\Models\Batch;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Inventory;
@@ -110,7 +111,18 @@ class SaleTransactionStorePhase3Test extends TestCase
             'wholesale_final_cost' => 90,
         ]);
 
+        $batch = Batch::create([
+            'name' => 'Phase 3 Store Received ' . uniqid(),
+            'description' => 'Received batch for transactional sales',
+            'quantity' => 10,
+            'status' => 'received',
+            'order_creation_date' => '2026-10-25 12:00:00',
+        ]);
+        $batch->company_id = $company->id;
+        $batch->save();
+
         $product->company_id = $company->id;
+        $product->batch_id = $batch->id;
         $product->save();
 
         return compact(

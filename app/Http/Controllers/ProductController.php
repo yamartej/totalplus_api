@@ -650,9 +650,9 @@ class ProductController extends Controller
     ) {
         $request->validate([
             'id' => 'required|integer',
-            'final_cost' => 'required|numeric|min:0',
+            'final_cost' => 'required|numeric|gt:0',
             'wholesale_final_cost' =>
-                'required|numeric|min:0',
+                'required|numeric|gt:0',
         ]);
 
         $companyId = $tenantContext->resolveCompanyId(
@@ -684,6 +684,18 @@ class ProductController extends Controller
             return response()->json([
                 'message' => 'Producto no encontrado',
             ], 404);
+        }
+
+        $batch = $product->batches;
+        if (
+            !$batch
+            || $batch->status !== 'received'
+            || (int) $batch->company_id !== $companyId
+        ) {
+            return response()->json([
+                'message' =>
+                    'Solo se pueden configurar precios de venta para productos de lotes recibidos de la empresa.',
+            ], 422);
         }
 
         $product->update([

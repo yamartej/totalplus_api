@@ -54,6 +54,9 @@ class SaleBaselineTest extends TestCase
             'identifier' => 'POS-PHASE0-' . uniqid(),
             'ubication' => 'Testing',
             'company_id' => $company->id,
+            'status' => 'open',
+            'seller_id' => $seller->id,
+            'seller' => $seller->name,
         ]);
 
         $productA = Product::factory()->create([

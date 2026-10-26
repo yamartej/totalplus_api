@@ -27,13 +27,15 @@ class RolesController extends Controller
         return new RolesResource($roles);
     }
 
-    public function show(Roles $roles)
+    public function show($id)
     {
-        return new RolesResource($roles);
+        $record = Roles::findOrFail($id);
+        return new RolesResource($record);
     }
 
-    public function put(Request $request, Roles $roles)
+    public function put(Request $request, $id)
     {
+        $roles = Roles::findOrFail($id);
         $data = $request->validate([
             'name' => 'required|string|max:255',
         ]);

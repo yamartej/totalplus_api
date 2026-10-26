@@ -20,7 +20,9 @@ class SalesReportController extends Controller
             $request->query('company_id')
         );
 
-        $query = Sale::query();
+        // These endpoints report active commercial operations.
+        // Voided sales remain accessible through the audit/history listings.
+        $query = Sale::query()->whereNull('sales.voided_at');
 
         if ($companyId !== null) {
             $query->where(function (Builder $sales) use ($companyId) {

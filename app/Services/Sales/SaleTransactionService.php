@@ -40,6 +40,30 @@ class SaleTransactionService
             $carts,
             $actorUserId
         ) {
+            // The register must still be open at the exact moment of sale.
+            // Locking it prevents a concurrent close from slipping between
+            // validation and the inventory/financial transaction.
+            $activePop = PointOfSale::query()
+                ->whereKey($pop->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (
+                !$activePop
+                || (int) $activePop->company_id !== $companyId
+                || $activePop->status !== 'open'
+            ) {
+                throw new DomainException(
+                    'La caja debe estar abierta para registrar ventas.'
+                );
+            }
+
+            if ((int) $activePop->seller_id !== (int) $seller->id) {
+                throw new DomainException(
+                    'El vendedor no está asignado a la caja abierta.'
+                );
+            }
+
             $lines = $this->prepareLines(
                 $companyId,
                 $carts

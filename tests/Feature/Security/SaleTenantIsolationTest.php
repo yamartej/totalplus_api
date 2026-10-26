@@ -77,13 +77,15 @@ class SaleTenantIsolationTest extends TestCase
         ]);
     }
 
-    private function pop(Company $company): PointOfSale
+    private function pop(Company $company, ?User $seller = null): PointOfSale
     {
         return PointOfSale::create([
             'company_id' => $company->id,
             'identifier' => 'POS-' . uniqid(),
             'ubication' => 'Testing',
-            'status' => 'created',
+            'status' => 'open',
+            'seller_id' => $seller?->id,
+            'seller' => $seller?->name,
         ]);
     }
 
@@ -187,7 +189,7 @@ class SaleTenantIsolationTest extends TestCase
         $company = Company::create(['name' => 'Company A']);
         $actor = $this->user($company, true);
         $customer = $this->customer($company);
-        $pop = $this->pop($company);
+        $pop = $this->pop($company, $actor);
         [$product, $inventory] =
             $this->productInventory($company, 10);
 

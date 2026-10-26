@@ -60,4 +60,4 @@ jobs:
           test "$DB_DATABASE" = "totalplus_ci_isolated"
           php artisan tinker --execute="if (DB::connection()->getDatabaseName() !== 'totalplus_ci_isolated') { throw new RuntimeException('Unexpected database'); } echo 'CI database isolated'.PHP_EOL;"
       - name: Run complete PHP test suite
-        run: php artisan test --stop-on-failure
+        run: php artisan test

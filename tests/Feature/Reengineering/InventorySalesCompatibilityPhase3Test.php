@@ -53,6 +53,9 @@ class InventorySalesCompatibilityPhase3Test extends TestCase
             'identifier' => 'POS-PHASE3F2-' . uniqid(),
             'ubication' => 'Testing',
             'company_id' => $company->id,
+            'status' => 'open',
+            'seller_id' => $seller->id,
+            'seller' => $seller->name,
         ]);
 
         $product = Product::factory()->create([

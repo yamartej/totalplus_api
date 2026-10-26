@@ -4,114 +4,44 @@ namespace Tests\Feature;
 
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\WithFaker;
-use Tests\TestCase;
-use Illuminate\Http\Response;
+use Illuminate\Database\Eloquent\Model;
+use Tests\Support\AuthenticatedCrudContract;
 
-class PurchaseOrderTest extends TestCase
+/** Regression of the current authenticated API contract, not the pre-tenancy routes. */
+class PurchaseOrderTest extends AuthenticatedCrudContract
 {
-    use RefreshDatabase, WithFaker;
+    protected string $endpoint = '/api/purchaseorders';
+    protected string $modelClass = PurchaseOrder::class;
 
-    public function test_all_purchase_orders()
+    private function supplier(): Supplier
     {
-        
-        PurchaseOrder::factory()->count(3)->create();
-
-        $response = $this->get('/api/purchaseorders');
-
-        $response->assertStatus(200);
-
-        $response->assertJsonStructure([
-            '*' => [
-                'id',
-                'supplier_id',
-                'tracking_number',
-                'shipping_cost',
-                'created_at',
-                'updated_at',
-            ],
+        $supplier = Supplier::create(['name' => 'PO Supplier '.uniqid(), 'phone' => '1234567']);
+        $supplier->company_id = $this->qaCompany->id;
+        $supplier->save();
+        return $supplier;
+    }
+    private function order(): PurchaseOrder
+    {
+        $order = PurchaseOrder::create([
+            'supplier_id' => $this->supplier()->id,
+            'tracking_number' => 'QA-'.uniqid(),
+            'shipping_cost' => 12.50,
         ]);
-
-        // Verificar la cantidad de registros en la respuesta
-        $response->assertJsonCount(3);
-        
+        $order->company_id = $this->qaCompany->id;
+        $order->save();
+        return $order;
     }
-
-    public function test_create_purchase_order()
+    protected function fixture(): Model
     {
-        $supplier = Supplier::factory()->create();
-
-        $purchase_order = [
-            'supplier_id' => $supplier->id,
-            'tracking_number' => 'aaaa123456', 
-            'shipping_cost' => 10, 
-        ];
-
-        $response = $this->post('/api/purchaseorders', $purchase_order);
-
-        $response->assertStatus(Response::HTTP_CREATED);
-        $this->assertDatabaseHas('purchase_orders', $purchase_order);
-
+        return $this->order();
     }
-
-    public function test_show_puchase_order()
+    protected function createPayload(): array
     {
-        $purchase_order = PurchaseOrder::factory()->create();
-
-        $response = $this->get('/api/purchaseorders/' . $purchase_order->id);
-
-        $response->assertStatus(200);
- 
-         // Verificar que los datos del cliente obtenido coinciden con los datos del cliente de prueba
-         $response->assertJson([
-             'id' => $purchase_order->id,
-             'supplier_id' => $purchase_order->supplier_id,
-             'tracking_number' => $purchase_order->tracking_number,
-             'shipping_cost' => $purchase_order->shipping_cost,
-         ]);
+        return ['supplier_id' => $this->supplier()->id,
+            'tracking_number' => 'NEW-'.uniqid(), 'shipping_cost' => 14.50];
     }
-
-    public function test_put_purchase_order()
+    protected function updatePayload(): array
     {
-        $supplier = Supplier::factory()->create();
-
-        $purchase_order = PurchaseOrder::factory()->create();
-
-        $purchase_order_data = [
-            'supplier_id' => $supplier->id,
-            'tracking_number' => '0001',
-            'shipping_cost' => 20,
-        ];
-
-        $response = $this->putJson('/api/purchaseorders/' . $purchase_order->id, $purchase_order_data);
-        
-        $response->assertStatus(200);
- 
-         $response->assertJson([
-            'id' => $purchase_order->id,
-            'tracking_number' => $purchase_order_data['tracking_number'],
-            'shipping_cost' => $purchase_order_data['shipping_cost'],
-         ]);
-
-     
-    }
-
-    public function test_delete_purchase_order()
-    {
-        $purchase_order = PurchaseOrder::factory()->create();
-        
-        $response = $this->deleteJson('/api/purchaseorders/'. $purchase_order->id);
-
-        $response->assertStatus(204);
-
-        $this->assertDatabaseMissing('purchase_orders', ['id' => $purchase_order->id]);
-    }
-
-    public function test_example()
-    {
-        $response = $this->get('/');
-
-        $response->assertStatus(200);
+        return ['tracking_number' => 'EDIT-'.uniqid(), 'shipping_cost' => 21.75];
     }
 }

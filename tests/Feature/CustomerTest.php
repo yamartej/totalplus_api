@@ -1,93 +1,59 @@
 <?php
+
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\WithFaker;
-use Tests\TestCase;
 use App\Models\Customer;
+use Illuminate\Database\Eloquent\Model;
+use Tests\Support\AuthenticatedCrudContract;
 
-class CustomerTest extends TestCase
+/** Customer identity (client_id) and authenticated tenant CRUD contract. */
+class CustomerTest extends AuthenticatedCrudContract
 {
-    use RefreshDatabase, WithFaker; // Agregar el trait WithFaker
+    protected string $endpoint = '/api/customers';
+    protected string $modelClass = Customer::class;
 
-    public function test_create_customer()
+    protected function fixture(): Model
     {
-        $data = [
-            'name' => $this->faker->name, // Genera un nombre aleatorio
-            'address' => $this->faker->address, // Genera una dirección aleatoria
-            'phone' => $this->faker->phoneNumber, // Genera un número de teléfono aleatorio
-        ];
-
-        $response = $this->postJson('/api/customers', $data);
-
-        $response->assertStatus(201)
-            ->assertJson($data);
-    }
-
-    public function test_show_customer()
-    {
-        // Crear un cliente de prueba en la base de datos usando el factory
-        $customer = Customer::factory()->create([
-            'name' => $this->faker->name, // Genera un nombre aleatorio
-            'address' => $this->faker->address, // Genera una dirección aleatoria
-            'phone' => $this->faker->phoneNumber, // Genera un número de teléfono aleatorio
+        return Customer::create([
+            'client_id' => 22000001, 'name' => 'QA customer',
+            'address' => 'QA street', 'phone' => '123456',
+            'company_id' => $this->qaCompany->id,
         ]);
-
-         // Hacer la solicitud GET a la ruta para obtener el cliente
-         $response = $this->getJson('/api/customers/' . $customer->id);
-
-         // Verificar que se haya obtenido el cliente con éxito y que la respuesta sea 200 (OK)
-         $response->assertStatus(200);
- 
-         // Verificar que los datos del cliente obtenido coinciden con los datos del cliente de prueba
-         $response->assertJson([
-             'id' => $customer->id,
-             'name' => $customer->name,
-             'address' => $customer->address,
-             'phone' => $customer->phone,
-         ]);
     }
 
-    public function test_update_customer(){
-        
-        $customer = Customer::factory()->create([
-            'name' => $this->faker->name, // Genera un nombre aleatorio
-            'address' => $this->faker->address, // Genera una dirección aleatoria
-            'phone' => $this->faker->phoneNumber, // Genera un número de teléfono aleatorio
-        ]);
-
-        $data = [
-            'name' => 'Pedro Perez',
-            'address' => 'Otra dirección', 
-            'phone' => 'El mismo Telefono', 
+    protected function createPayload(): array
+    {
+        return [
+            'client_id' => 22000002, 'name' => 'Created customer',
+            'address' => 'QA street', 'phone' => '123456',
         ];
-
-         $response = $this->putJson('/api/customers/' . $customer->id, $data);
-
-         $response->assertStatus(200);
- 
-         $response->assertJson([
-            'name' => 'Pedro Perez',
-            'address' => 'Otra dirección', 
-            'phone' => 'El mismo Telefono', 
-         ]);
-    }
-    public function test_delete_customer()
-    {
-        $customer = Customer::factory()->create();
-
-        $response = $this->deleteJson('/api/customers/' . $customer->id);
-
-        $response->assertStatus(204);
-
-        $this->assertDatabaseMissing('customers', ['id' => $customer->id]);
-
     }
 
-    public function test_example()
+    protected function updatePayload(): array
     {
-        $response = $this->get('/');
+        return [
+            'client_id' => 22000003, 'name' => 'Updated customer',
+            'address' => 'QA updated address', 'phone' => '987654',
+        ];
+    }
 
-        $response->assertStatus(200);
+    public function test_show_record(): void
+    {
+        $record = $this->fixture();
+
+        // This legacy endpoint resolves by client_id and returns a collection.
+        $response = $this->getJson(
+            $this->endpoint . '/' . $record->client_id
+        )->assertOk();
+
+        $this->assertContains(
+            (int) $record->id,
+            array_map('intval', array_column($response->json(), 'id'))
+        );
+    }
+
+    public function test_example(): void
+    {
+        $this->get('/')->assertOk();
     }
 }

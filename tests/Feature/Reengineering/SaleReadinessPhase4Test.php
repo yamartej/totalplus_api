@@ -67,6 +67,9 @@ class SaleReadinessPhase4Test extends TestCase
             'identifier' => 'QA-SALE-READINESS-' . uniqid(),
             'ubication' => 'Testing',
             'company_id' => $company->id,
+            'status' => 'open',
+            'seller_id' => $seller->id,
+            'seller' => $seller->name,
         ]);
 
         $batch = Batch::create([

@@ -12,6 +12,16 @@ class RolesTest extends AuthenticatedCrudContract
     protected string $endpoint = '/api/roles';
     protected string $modelClass = Roles::class;
 
+    protected function expectedCreateStatus(): int
+    {
+        return 200; // Existing JsonResource creation response.
+    }
+
+    protected function idFromCreationResponse(array $json): int
+    {
+        return (int) $json['data']['id'];
+    }
+
     protected function fixture(): Model
     {
         return Roles::create(['name' => 'Listed Role '.uniqid(), 'description' => 'QA']);

@@ -90,14 +90,15 @@ class SaleTransactionVoidPhase3Test extends TestCase
             ['description' => 'Phase 3C test role']
         );
 
-        $permission = Permission::firstOrCreate(
-            ['name' => 'sales.delete'],
-            ['description' => 'Phase 3C sales delete permission']
-        );
-
-        $role->permissions()->syncWithoutDetaching([
-            $permission->id,
-        ]);
+        foreach (['sales.delete', 'sales.view', 'reports.view'] as $name) {
+            $permission = Permission::firstOrCreate(
+                ['name' => $name],
+                ['description' => 'Phase 3C test permission']
+            );
+            $role->permissions()->syncWithoutDetaching([
+                $permission->id,
+            ]);
+        }
 
         $user->roles()->syncWithoutDetaching([
             $role->id,
@@ -188,6 +189,23 @@ class SaleTransactionVoidPhase3Test extends TestCase
         ]);
         $this->assertNotNull($sale->fresh()->voided_at);
         $this->assertSame(2, SaleDetail::where('sale_id', $sale->id)->count());
+
+        // Audit/history must retain canceled sales and their details.
+        $history = $this
+            ->withHeaders($this->authHeaders($ctx['seller']))
+            ->getJson('/api/sales')
+            ->assertOk();
+        $history->assertJsonFragment([
+            'id' => $sale->id,
+            'void_reason' => 'manual',
+        ]);
+
+        // Sales-by-period remains an active-sales (not historical gross) report.
+        $date = $sale->created_at->format('Y-m-d');
+        $this->withHeaders($this->authHeaders($ctx['seller']))
+            ->getJson('/api/reports/sales/period/' . $date . '/' . $date)
+            ->assertOk()
+            ->assertExactJson([]);
 
         // A repeated void must never replenish stock a second time.
         $repeat = $this

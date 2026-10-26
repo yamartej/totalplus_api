@@ -13,6 +13,27 @@ class CashRegisterTest extends AuthenticatedCrudContract
     protected string $endpoint = '/api/cashregisters';
     protected string $modelClass = CashRegister::class;
 
+    protected function expectedCreateStatus(): int
+    {
+        return 200; // Existing JsonResource creation response.
+    }
+
+    protected function idFromCreationResponse(array $json): int
+    {
+        return (int) $json['data']['id'];
+    }
+
+    public function test_list_records(): void
+    {
+        $record = $this->fixture();
+        $response = $this->getJson($this->endpoint)->assertOk();
+        $records = $response->json('data');
+        $this->assertContains(
+            (int) $record->id,
+            array_map('intval', array_column($records, 'id'))
+        );
+    }
+
     private function warehouse(): Warehouse
     {
         return Warehouse::create([

@@ -338,6 +338,9 @@ class SaleBaselineTest extends TestCase
             ->deleteJson('/api/sales/' . $sale->id);
 
         $deleteResponse->assertStatus(204);
+        $this->assertNotNull($sale->fresh()->voided_at);
+        $this->assertSame('manual', $sale->fresh()->void_reason);
+        $this->assertSame(2, $sale->fresh()->allDetails()->count());
 
         $this->assertSame(
             10,

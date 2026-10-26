@@ -14,7 +14,7 @@ class RolesTest extends AuthenticatedCrudContract
 
     protected function expectedCreateStatus(): int
     {
-        return 200; // Existing JsonResource creation response.
+        return 201; // JsonResource correctly reports a newly created model.
     }
 
     protected function idFromCreationResponse(array $json): int

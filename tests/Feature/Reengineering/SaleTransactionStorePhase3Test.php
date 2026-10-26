@@ -81,6 +81,9 @@ class SaleTransactionStorePhase3Test extends TestCase
             'identifier' => 'POS-PHASE3-' . uniqid(),
             'ubication' => 'Testing',
             'company_id' => $company->id,
+            'status' => 'open',
+            'seller_id' => $seller->id,
+            'seller' => $seller->name,
         ]);
 
         $warehouseA = Warehouse::create([

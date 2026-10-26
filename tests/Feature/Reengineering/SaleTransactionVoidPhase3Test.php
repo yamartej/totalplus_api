@@ -182,13 +182,26 @@ class SaleTransactionVoidPhase3Test extends TestCase
                 ->count()
         );
 
-        $this->assertDatabaseMissing(
-            'sales',
-            ['id' => $sale->id]
-        );
-        $this->assertDatabaseMissing(
-            'sales_details',
-            ['sale_id' => $sale->id]
+        $this->assertDatabaseHas('sales', [
+            'id' => $sale->id,
+            'void_reason' => 'manual',
+        ]);
+        $this->assertNotNull($sale->fresh()->voided_at);
+        $this->assertSame(2, SaleDetail::where('sale_id', $sale->id)->count());
+
+        // A repeated void must never replenish stock a second time.
+        $repeat = $this
+            ->withHeaders($this->authHeaders($ctx['seller']))
+            ->deleteJson('/api/sales/' . $sale->id);
+
+        $repeat->assertStatus(422);
+        $this->assertSame(6, (int) $inventoryA->fresh()->quantity);
+        $this->assertSame(9, (int) $inventoryB->fresh()->quantity);
+        $this->assertSame(
+            2,
+            InventoryMovement::where('reference_type', 'sale_void')
+                ->where('reference_id', $sale->id)
+                ->count()
         );
     }
 

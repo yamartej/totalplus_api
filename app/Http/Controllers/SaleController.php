@@ -110,6 +110,7 @@ class SaleController extends Controller
             Sale::with([
                 'customer',
                 'details.product.inventory',
+                'allDetails.product',
                 'paymentDetails',
             ])->orderBy('created_at', 'desc'),
             $request,
@@ -246,6 +247,12 @@ class SaleController extends Controller
             'total_amount' => 'prohibited',
         ]);
 
+        if ($sale->voided_at !== null) {
+            return response()->json([
+                'message' => 'No se puede modificar una venta anulada.',
+            ], 422);
+        }
+
         $sale->update($request->only([
             'credit_note_detail',
             'credit_note_date',
@@ -315,6 +322,7 @@ class SaleController extends Controller
                 'paymentDetails',
             ])
                 ->where('type_of_sale', 'credit')
+                ->whereNull('sales.voided_at')
                 ->orderBy('created_at', 'desc'),
             $request,
             $tenant
@@ -334,6 +342,7 @@ class SaleController extends Controller
                     DB::raw('SUM(total_amount) as total_debt')
                 )
                 ->where('type_of_sale', 'credit')
+                ->whereNull('sales.voided_at')
                 ->groupBy('customer_id'),
             $request,
             $tenant
@@ -433,6 +442,7 @@ class SaleController extends Controller
         [$query] = $this->scopeSales(
             Sale::with(['customer'])
                 ->where('type_of_sale', 'credit')
+                ->whereNull('sales.voided_at')
                 ->orderBy('created_at', 'desc'),
             $request,
             $tenant
@@ -466,6 +476,7 @@ class SaleController extends Controller
         [$query] = $this->scopeSales(
             Sale::with(['customer'])
                 ->where('type_of_sale', 'credit')
+                ->whereNull('sales.voided_at')
                 ->orderBy('created_at', 'desc'),
             $request,
             $tenant,
@@ -504,6 +515,7 @@ class SaleController extends Controller
                     DB::raw('SUM(total_amount) as total_debt')
                 )
                 ->where('type_of_sale', 'credit')
+                ->whereNull('sales.voided_at')
                 ->groupBy('customer_id'),
             $request,
             $tenant,
@@ -545,6 +557,7 @@ class SaleController extends Controller
             Sale::with([
                 'customer',
                 'details.product.inventory',
+                'allDetails.product',
                 'paymentDetails',
             ])->orderBy('created_at', 'desc'),
             $request,

@@ -156,6 +156,50 @@ class SaleReadinessPhase4Test extends TestCase
             ->assertJsonCount(1)
             ->assertJsonFragment(['product_id' => $product->id]);
 
+        // Closing the cash register must block the API even if the caller
+        // bypasses the frontend. The failed attempt cannot debit stock.
+        $pop->status = 'closed';
+        $pop->save();
+
+        $this->withHeaders($headers)
+            ->postJson('/api/sales', $salePayload)
+            ->assertStatus(422)
+            ->assertJsonPath(
+                'message',
+                'La caja debe estar abierta para registrar ventas.'
+            );
+
+        $this->assertDatabaseHas('inventories', [
+            'id' => $inventory->id,
+            'quantity' => 1,
+        ]);
+        $this->assertDatabaseCount('sales', 0);
+
+        // An open register is not enough: the seller must be assigned.
+        $pop->status = 'open';
+        $pop->seller_id = null;
+        $pop->seller = null;
+        $pop->save();
+
+        $this->withHeaders($headers)
+            ->postJson('/api/sales', $salePayload)
+            ->assertStatus(422)
+            ->assertJsonPath(
+                'message',
+                'El vendedor no está asignado a la caja abierta.'
+            );
+
+        $this->assertDatabaseHas('inventories', [
+            'id' => $inventory->id,
+            'quantity' => 1,
+        ]);
+        $this->assertDatabaseCount('sales', 0);
+
+        // Only after reopening and assigning the seller may stock move.
+        $pop->seller_id = $seller->id;
+        $pop->seller = $seller->name;
+        $pop->save();
+
         $this->withHeaders($headers)
             ->postJson('/api/sales', $salePayload)
             ->assertCreated();

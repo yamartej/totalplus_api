@@ -37,6 +37,31 @@ class ProductTest extends AuthenticatedCrudContract
         ];
     }
 
+    public function test_creation_without_quantity_initializes_zero_stock(): void
+    {
+        $data = $this->createPayload();
+        $this->assertArrayNotHasKey('quantity', $data);
+
+        $response = $this->postJson($this->endpoint, $data)->assertOk();
+        $product = Product::findOrFail($response->json('product.id'));
+        $this->assertSame(0, (int) $product->quantity);
+    }
+
+    public function test_edit_without_quantity_preserves_current_stock(): void
+    {
+        $product = Product::factory()->create([
+            'company_id' => $this->qaCompany->id,
+            'quantity' => 7,
+        ]);
+
+        $this->putJson(
+            $this->endpoint . '/' . $product->id,
+            $this->updatePayload()
+        )->assertOk();
+
+        $this->assertSame(7, (int) $product->fresh()->quantity);
+    }
+
     protected function expectedCreateStatus(): int
     {
         return 200; // Existing products API wraps the product and returns HTTP 200.

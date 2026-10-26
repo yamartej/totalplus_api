@@ -48,6 +48,11 @@ class CreditDetailController extends Controller
             if (!$sale) {
                 return response()->json(['message' => 'Venta no encontrada'], 404);
             }
+            if ($sale->voided_at !== null) {
+                throw ValidationException::withMessages([
+                    'sale_id' => ['No se admiten pagos sobre ventas anuladas.'],
+                ]);
+            }
             if ($sale->type_of_sale !== 'credit') {
                 throw ValidationException::withMessages(['sale_id' => ['La venta no es a crédito.']]);
             }

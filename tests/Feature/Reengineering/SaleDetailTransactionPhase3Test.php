@@ -395,10 +395,13 @@ class SaleDetailTransactionPhase3Test extends TestCase
             (int) $inventoryB->fresh()->quantity
         );
 
-        $this->assertDatabaseMissing(
-            'sales_details',
-            ['id' => $detailA->id]
-        );
+        $this->assertDatabaseHas('sales_details', [
+            'id' => $detailA->id,
+            'sale_id' => $sale->id,
+        ]);
+        $this->assertNotNull($detailA->fresh()->removed_at);
+        $this->assertSame(1, $sale->fresh()->details()->count());
+        $this->assertSame(2, $sale->fresh()->allDetails()->count());
 
         $this->assertDatabaseHas(
             'sales',
@@ -457,15 +460,28 @@ class SaleDetailTransactionPhase3Test extends TestCase
             (int) $inventory->fresh()->quantity
         );
 
-        $this->assertDatabaseMissing(
-            'sales_details',
-            ['id' => $detail->id]
-        );
+        $this->assertDatabaseHas('sales_details', [
+            'id' => $detail->id,
+            'sale_id' => $sale->id,
+        ]);
+        $this->assertNotNull($detail->fresh()->removed_at);
+        $this->assertDatabaseHas('sales', [
+            'id' => $sale->id,
+            'total_amount' => 200,
+            'void_reason' => 'all_details_removed',
+        ]);
+        $this->assertNotNull($sale->fresh()->voided_at);
+        $this->assertSame(0, $sale->fresh()->details()->count());
+        $this->assertSame(1, $sale->fresh()->allDetails()->count());
 
-        $this->assertDatabaseMissing(
-            'sales',
-            ['id' => $sale->id]
-        );
+        $repeat = $this
+            ->withHeaders($this->authHeaders(
+                $ctx['seller'],
+                ['sales.delete']
+            ))
+            ->deleteJson('/api/sales/detail/' . $detail->id);
+        $repeat->assertStatus(422);
+        $this->assertSame(10, (int) $inventory->fresh()->quantity);
     }
 
     public function test_other_company_user_cannot_update_sale_detail(): void

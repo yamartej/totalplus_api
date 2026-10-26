@@ -181,7 +181,9 @@ class CustomerController extends Controller
             ->scope(
                 Customer::query()->with([
                     'creditCustomerDetails',
-                    'sale',
+                    'sale' => function ($sales) {
+                        $sales->whereNull('voided_at');
+                    },
                 ]),
                 $request->user(),
                 $request->query('company_id')

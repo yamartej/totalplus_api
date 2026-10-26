@@ -75,7 +75,7 @@ class ProductController extends Controller
             'price' => $request->input('price'),
             'image' => $request->input('image'),
             'category_id' => $request->input('category_id'),
-            'quantity' => $request->input('quantity'),
+            'quantity' => $request->input('quantity', 0),
             'batch_id' => $batchId,
 
             // These columns are NOT NULL in the legacy schema and the
@@ -191,7 +191,7 @@ class ProductController extends Controller
             'price' => $request->input('price'),
             'image' => $request->input('image'),
             'category_id' => $request->input('category_id'),
-            'quantity' => $request->input('quantity'),
+            'quantity' => $request->input('quantity', $product->quantity),
             'batch_id' => $batchId,
         ]);
 

@@ -17,12 +17,15 @@ class SaleDetail extends Model
         'warehouse_id',
         'quantity',
         'unit_price',
+        'removed_at',
+        'removed_by',
     ];
 
     protected $casts = [
         'warehouse_id' => 'integer',
         'quantity' => 'integer',
         'unit_price' => 'decimal:2',
+        'removed_at' => 'datetime',
     ];
 
     public function sale()

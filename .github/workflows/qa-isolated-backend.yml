@@ -12,6 +12,10 @@ jobs:
     if: github.event_name == 'pull_request' && github.head_ref == 'reengineering/phase0-2-20261025'
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [phase, full]
     services:
       mysql:
         image: mysql:8.0
@@ -59,5 +63,10 @@ jobs:
         run: |
           test "$DB_DATABASE" = "totalplus_ci_isolated"
           php artisan tinker --execute="if (DB::connection()->getDatabaseName() !== 'totalplus_ci_isolated') { throw new RuntimeException('Unexpected database'); } echo 'CI database isolated'.PHP_EOL;"
-      - name: Run complete PHP test suite
-        run: php artisan test
+      - name: Run Laravel tests
+        run: |
+          if [ "${{ matrix.suite }}" = "phase" ]; then
+            php artisan test tests/Feature/Reengineering tests/Feature/Security
+          else
+            php artisan test
+          fi

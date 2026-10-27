@@ -355,4 +355,48 @@ class InventoryKardexPhase2Test extends TestCase
             -2
         );
     }
+    public function test_transfer_cannot_forge_sale_or_purchase_receipt_references(): void
+    {
+        $ctx = $this->context();
+
+        app(InventoryService::class)->receive(
+            (int) $ctx['companyA']->id,
+            (int) $ctx['warehouseA']->id,
+            (int) $ctx['productA']->id,
+            10
+        );
+
+        $before = InventoryMovement::count();
+        $payload = [
+            'source_warehouse_id' => $ctx['warehouseA']->id,
+            'destination_warehouse_id' => $ctx['warehouseB']->id,
+            'product_id' => $ctx['productA']->id,
+            'quantity' => 3,
+            'reference_type' => 'sale',
+            'reference_id' => 98765,
+        ];
+
+        foreach (['sale', 'sale_void', 'purchase_receipt'] as $forgery) {
+            $payload['reference_type'] = $forgery;
+
+            $this->withHeaders($this->authHeaders($ctx['userA']))
+                ->postJson('/api/inventory/transfer', $payload)
+                ->assertStatus(422)
+                ->assertJsonValidationErrors('reference_type');
+        }
+
+        $this->assertSame($before, InventoryMovement::count());
+        $this->assertSame(
+            10,
+            (int) Inventory::query()
+                ->where('warehouse_id', $ctx['warehouseA']->id)
+                ->where('product_id', $ctx['productA']->id)
+                ->value('quantity')
+        );
+        $this->assertDatabaseMissing('inventories', [
+            'product_id' => $ctx['productA']->id,
+            'warehouse_id' => $ctx['warehouseB']->id,
+        ]);
+    }
+
 }

@@ -231,7 +231,7 @@ class PurchaseReceiptPartialPhase3Test extends TestCase
             'lines' => [
                 ['purchase_order_product_id' => $ctx['lineA']->id, 'quantity' => 1],
             ],
-        ])->assertUnprocessable()->assertJsonValidationErrors('receipt_key');
+        ])->assertStatus(422)->assertJsonValidationErrors('receipt_key');
 
         $this->assertSame(0, PurchaseReceipt::count());
     }
@@ -256,7 +256,7 @@ class PurchaseReceiptPartialPhase3Test extends TestCase
     public function test_existing_receipt_without_lines_is_treated_as_legacy_complete(): void
     {
         $ctx = $this->setupOrder();
-        $receipt = PurchaseReceipt::create([
+        $receipt = new PurchaseReceipt([
             'purchase_order_id' => $ctx['order']->id,
             'warehouse_id' => $ctx['warehouse']->id,
             'received_by_user_id' => $ctx['user']->id,

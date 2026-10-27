@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\PurchaseReceiptAlreadyExistsException;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseReceipt;
 use App\Models\Warehouse;
 use App\Services\Purchasing\PurchaseReceiptService;
 use App\Services\Tenancy\TenantContext;
@@ -12,6 +13,32 @@ use Illuminate\Http\Request;
 
 class PurchaseReceiptController extends Controller
 {
+    public function index(Request $request, $id, TenantContext $tenantContext)
+    {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id')
+        );
+
+        $order = PurchaseOrder::query()
+            ->where('company_id', $companyId)
+            ->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'message' => 'Orden de compra no encontrada',
+            ], 404);
+        }
+
+        return response()->json(
+            PurchaseReceipt::query()
+                ->where('purchase_order_id', $order->id)
+                ->with('lines')
+                ->orderBy('id')
+                ->get()
+        );
+    }
+
     public function store(
         Request $request,
         $id,

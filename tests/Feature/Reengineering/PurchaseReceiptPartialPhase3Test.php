@@ -273,4 +273,129 @@ class PurchaseReceiptPartialPhase3Test extends TestCase
         $this->assertSame(1, PurchaseReceipt::count());
         $this->assertSame(0, InventoryMovement::count());
     }
+    public function test_complete_remainder_after_partial_delivery_receives_only_unfulfilled_units(): void
+    {
+        $ctx = $this->setupOrder();
+        $url = $this->endpoint($ctx['order']);
+
+        $this->postJson($url, $this->partialPayload(
+            $ctx, 'initial-two',
+            [['purchase_order_product_id' => $ctx['lineA']->id, 'quantity' => 2]]
+        ))->assertCreated();
+
+        $this->postJson($url, [
+            'warehouse_id' => $ctx['warehouse']->id,
+        ])->assertCreated();
+
+        $this->assertSame(2, PurchaseReceipt::count());
+        $this->assertSame(5, $this->balance($ctx['productA'], $ctx['warehouse']));
+        $this->assertSame(3, $this->balance($ctx['productB'], $ctx['warehouse']));
+        $this->assertSame(3, InventoryMovement::count());
+        $this->postJson($url, [
+            'warehouse_id' => $ctx['warehouse']->id,
+        ])->assertStatus(409);
+    }
+
+    public function test_receipt_history_requires_view_permission_and_scopes_by_company(): void
+    {
+        $ctx = $this->setupOrder();
+        $url = $this->endpoint($ctx['order']);
+
+        $this->postJson($url, $this->partialPayload(
+            $ctx, 'visible-receipt',
+            [['purchase_order_product_id' => $ctx['lineA']->id, 'quantity' => 2]]
+        ))->assertCreated();
+
+        $historyUrl = '/api/purchaseorders/' . $ctx['order']->id . '/receipts';
+
+        $this->getJson($historyUrl)->assertStatus(403);
+
+        $permission = Permission::firstOrCreate(
+            ['name' => 'purchaseorders.view'],
+            ['description' => 'Test view permission']
+        );
+        $ctx['user']->roles()->firstOrFail()
+            ->permissions()->syncWithoutDetaching([$permission->id]);
+
+        $this->getJson($historyUrl)
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath(
+                '0.lines.0.purchase_order_product_id',
+                $ctx['lineA']->id
+            );
+
+        $foreignOrder = PurchaseOrder::create([
+            'supplier_id' => $ctx['order']->supplier_id,
+            'tracking_number' => 'FOREIGN-ORDER-HISTORY',
+            'shipping_cost' => 0,
+        ]);
+        $foreignOrder->company_id = $ctx['other']->id;
+        $foreignOrder->save();
+
+        $this->getJson('/api/purchaseorders/' . $foreignOrder->id . '/receipts')
+            ->assertStatus(404);
+    }
+
+    public function test_foreign_product_during_partial_receive_rolls_back_every_line(): void
+    {
+        $ctx = $this->setupOrder();
+        $foreignLine = PurchaseOrderProduct::create([
+            'purchase_order_id' => $ctx['order']->id,
+            'product_id' => $ctx['foreignProduct']->id,
+            'quantity' => 1,
+            'price' => 20,
+        ]);
+
+        $this->postJson($this->endpoint($ctx['order']), $this->partialPayload(
+            $ctx, 'rollback-foreign',
+            [
+                ['purchase_order_product_id' => $ctx['lineA']->id, 'quantity' => 2],
+                ['purchase_order_product_id' => $foreignLine->id, 'quantity' => 1],
+            ]
+        ))->assertStatus(422);
+
+        $this->assertSame(0, PurchaseReceipt::count());
+        $this->assertSame(0, DB::table('purchase_receipt_lines')->count());
+        $this->assertSame(0, InventoryMovement::count());
+        $this->assertSame(0, $this->balance($ctx['productA'], $ctx['warehouse']));
+    }
+
+    public function test_receipt_key_cannot_be_reused_for_different_order(): void
+    {
+        $ctx = $this->setupOrder();
+        $otherOrder = PurchaseOrder::create([
+            'supplier_id' => $ctx['order']->supplier_id,
+            'tracking_number' => 'SAME-TENANT-OTHER-ORDER',
+            'shipping_cost' => 0,
+        ]);
+        $otherOrder->company_id = $ctx['company']->id;
+        $otherOrder->save();
+
+        $otherLine = PurchaseOrderProduct::create([
+            'purchase_order_id' => $otherOrder->id,
+            'product_id' => $ctx['productB']->id,
+            'quantity' => 1, 'price' => 10,
+        ]);
+
+        $this->postJson(
+            $this->endpoint($ctx['order']),
+            $this->partialPayload(
+                $ctx, 'key-used-across-orders',
+                [['purchase_order_product_id' => $ctx['lineA']->id, 'quantity' => 1]]
+            )
+        )->assertCreated();
+
+        $this->postJson(
+            $this->endpoint($otherOrder),
+            $this->partialPayload(
+                $ctx, 'key-used-across-orders',
+                [['purchase_order_product_id' => $otherLine->id, 'quantity' => 1]]
+            )
+        )->assertStatus(409);
+
+        $this->assertSame(1, PurchaseReceipt::count());
+        $this->assertSame(0, $this->balance($ctx['productB'], $ctx['warehouse']));
+    }
+
 }

@@ -1,7 +1,7 @@
 name: TotalPlus QA isolated backend
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 'reengineering/phase0-2-20261025']
   workflow_dispatch:
 
 permissions:
@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   feature-tests:
-    if: github.event_name == 'pull_request' && github.head_ref == 'reengineering/phase0-2-20261025'
+    if: github.event_name == 'pull_request' && (github.head_ref == 'reengineering/phase0-2-20261025' || github.head_ref == 'reengineering/phase3-operations-20261026')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     strategy:

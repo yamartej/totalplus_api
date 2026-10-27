@@ -1,54 +1,66 @@
-# TotalPlus — Fases 0 a 2: acta técnica y puerta de cierre
+# TotalPlus — Acta de validación y cierre de las Fases 0–2 (entorno QA)
 
-**Fecha:** 26 de octubre de 2026
-**Rama QA backend:** `reengineering/phase0-2-20261025` — PR #12 (borrador)
-**Rama QA frontend:** `reengineering/phase0-2-20261025` — PR #11 (borrador)
+**Fecha de aceptación local:** 26 de octubre de 2026  
+**Alcance:** ramas de reingeniería QA; **no es un despliegue a producción**.  
+**Backend:** `reengineering/phase0-2-20261025` — PR #12 (borrador).  
+**Frontend:** `reengineering/phase0-2-20261025` — PR #11 (borrador).
 
-## Resultado remoto — APROBADO
+## 1. Verificación automatizada — APROBADA
 
-La verificación automatizada se realizó sobre bases SQL efímeras de GitHub Actions, sin conectarse a la base local, a la producción ni a `main`.
+Las ejecuciones usaron exclusivamente bases efímeras de GitHub Actions; no utilizaron los datos QA locales.
 
-| Verificación | Resultado | Evidencia |
+| Comprobación | Resultado | Ejecución |
 |---|---|---|
-| Backend completo, MySQL 8 | 286/286 PASS | https://github.com/yamartej/totalplus_api/actions/runs/40322430247 |
-| Backend reingeniería y seguridad, MySQL 8 | 140/140 PASS | misma ejecución anterior |
-| Backend completo, MariaDB 10.11 | 286/286 PASS | https://github.com/yamartej/totalplus_api/actions/runs/40322764119 |
-| Frontend `npm ci`, TypeScript y Next.js build | PASS | https://github.com/yamartej/sitea/actions/runs/40316750226 |
-| Lint PHP de backend | PASS | Workflow 'Backend static validation' del PR #12 |
+| Backend completo — MySQL 8 | **286/286 PASS** | https://github.com/yamartej/totalplus_api/actions/runs/40323117765 |
+| Reingeniería y seguridad — MySQL 8 | **140/140 PASS** | https://github.com/yamartej/totalplus_api/actions/runs/40323117765 |
+| Backend completo — MariaDB 10.11 | **286/286 PASS** | https://github.com/yamartej/totalplus_api/actions/runs/40323117922 |
+| Validación estática PHP | **PASS** | https://github.com/yamartej/totalplus_api/actions/runs/40323117771 |
+| Frontend Next.js (TypeScript + build) | **PASS** | https://github.com/yamartej/sitea/actions/runs/40316750226 |
 
-Las pruebas heredadas se adecuaron a los contratos **actuales** (autorización, pertenencia a empresa, almacenes y estructura de ventas). Se conservaron controles de acceso, no se desactivó middleware ni se marcaron pruebas como omitidas para aprobar CI.
+Las pruebas heredadas se modernizaron a los contratos vigentes sin desactivar middleware de autenticación o autorización. Se añadieron pruebas de cantidad inicial cero en producto y preservación de cantidad al editar. La suite automatizada cubre el proceso de anulación no destructiva, sus controles de auditoría y exclusión de informes activos.
 
-Se validó la preservación del historial comercial en anulaciones y al retirar detalles. La venta anulada debe conservar fecha, importe, detalles originales y marcadores de auditoría; su inventario se revierte una sola vez. Los reportes de ventas vigentes no contabilizan anulaciones.
+## 2. Respaldo, restauración y migración locales — APROBADOS
 
-La corrección de productos garantiza cantidad inicial cero cuando se omite, y conserva existencias previas cuando una edición no cambia la cantidad.
+Evidencia proporcionada por el responsable de ejecución local:
 
-## Pendiente para cierre formal — INSTALACIÓN LOCAL XAMPP
+- PHP **8.2.12**.
+- Rama backend actualizada al commit `472b261`; frontend al commit `aebf475`.
+- Se preservaron los archivos locales de configuración; `.env.testing` apunta a la base QA `totalplus_phase02_testing`.
+- Se creó un respaldo SQL y se verificó su integridad por SHA-256.
+- Se restauró el respaldo con éxito **en una base temporal distinta**: 33 tablas presentes; **452 registros en origen y 452 en restauración**, sin diferencias en recuentos de ninguna de las 33 tablas.
+- Se verificó la conexión real de Laravel en entorno `testing` antes de modificar el esquema.
+- Se ejecutó únicamente la migración aditiva `2026_10_25_000001_add_sale_void_audit_fields.php` (**QA-018**): los cinco campos de auditoría están presentes y el registro de migraciones pasó de 68 a 69.
+- Después de migrar permanecieron intactos los recuentos conocidos: 4 ventas, 4 detalles, 3 inventarios y 10 movimientos.
+- El backend local respondió **401** a un acceso anónimo a ventas, como exige el control de autenticación.
+- TypeScript local y Next.js build local: **PASS**. Se observaron advertencias ESLint no bloqueantes; se pueden resolver en mantenimiento posterior.
+- Inicio de sesión en la interfaz local: **PASS**.
 
-**No se han ejecutado estos pasos remotos sobre la computadora del usuario.** No firmar cierre formal, no fusionar PR ni desplegar hasta contar con los controles siguientes:
+**Nota de alcance:** el cotejo de respaldo validó estructura, restauración y recuentos, no una comparación byte a byte o campo por campo de todos los datos.
 
-1. Verificar que el backend esté detenido, la rama sea la aislada y la copia de trabajo no tenga modificaciones inesperadas (`.env.testing` ya contiene cambios locales que deben preservarse).
-2. Crear **y verificar** un respaldo SQL completo de `totalplus_phase02_testing`, desde phpMyAdmin, fuera de `htdocs`. Mantener una segunda copia del archivo. No tocar base de producción.
-3. Ejecutar `C:\xampp\php\php.exe -v` y comprobar compatibilidad con las dependencias del `composer.lock` (CI utilizó PHP 8.2).
-4. Hacer `git pull --ff-only origin reengineering/phase0-2-20261025` en los clones aislados backend y frontend, conservando los `.env` locales. No actualizar `main`.
-5. Inspeccionar por lectura los nombres de base activos:
-   ```powershell
-   Select-String -Path .env,.env.testing -Pattern '^\s*(APP_ENV|DB_CONNECTION|DB_DATABASE)\s*='
-   ```
-6. Comprobar que **no existe configuración cacheada** `bootstrap/cache/config.php`; de existir, detener el proceso y resolverlo antes de migrar.
-7. Con el respaldo verificado, establecer explícitamente en el proceso PowerShell `APP_ENV=testing`, `DB_CONNECTION=mysql`, `DB_DATABASE=totalplus_phase02_testing`, y verificar el destino real con una consulta de Laravel **solo lectura**. Solo entonces ejecutar la migración aditiva `2026_10_25_000001_add_sale_void_audit_fields.php` con `artisan migrate --path=... --env=testing`, sin `migrate:fresh`.
-8. Recuento de ventas, detalles e inventarios **antes y después**. El cambio de esquema no debe borrar ventas previas ni modificar existencias.
-9. Verificar en el frontend local el historial antiguo, el indicador "Anulada", los detalles históricos, los reportes de ventas vigentes, la devolución a Kardex y el rechazo de segunda anulación. Utilizar una venta de prueba desechable, no anular ventas históricas para hacer la prueba.
-10. Documentar resultado, respaldo, versión PHP y versión MySQL/MariaDB, y aprobar el cierre antes de considerar fusión a `main`.
+## 3. Aceptación funcional de usuario — APROBADA
 
-### Restricciones obligatorias
+En `http://127.0.0.1:3000`, con API local en `http://127.0.0.1:8000`, el usuario informó explícitamente:
 
-- **Nunca** ejecutar `php artisan test` con `RefreshDatabase` apuntando a `totalplus_phase02_testing`; destruye/reconstruye tablas.
-- Automatización de pruebas local, si se requiere, únicamente contra `totalplus_qa013_tests` y con variables de entorno verificadas.
-- Ninguna migración ni prueba destructiva debe tener como destino la base de producción.
-- Mantener ambos PR como **draft** hasta firma de cierre.
+| Flujo de interfaz | Resultado |
+|---|---|
+| Reporte de ventas | **APROBADO** |
+| Inventario | **APROBADO** |
+| Registro de ventas | **APROBADO** |
+| Observaciones del usuario | **Ninguna** |
 
-## Dictamen
+Las pantallas fueron comprobadas en modo consulta; **no se ejecutó manualmente una nueva venta o anulación destructiva sobre los datos QA históricos**.
 
-**Aprobado:** implementación y regresión automatizada remota de las Fases 0–2.
+## 4. Límites del cierre y puerta a producción
 
-**Pendiente de aprobación final:** despliegue en entorno QA funcional local, respaldo verificado, ejecución de migración aditiva y aceptación funcional posterior. La ausencia de acceso remoto al XAMPP impide afirmar que esos pasos ya ocurrieron.
+**Dictamen:** **Fases 0–2 cerradas a nivel de desarrollo y aceptación de entorno QA** con la cobertura anterior. La aprobación significa que la suite automatizada y las tres pantallas revisadas funcionan y que la migración QA fue aplicada de forma controlada.
+
+**La autorización para fusionar PR o desplegar en producción NO forma parte de este dictamen.** Ambos PR permanecen como borrador. Antes de producción o de afirmar una aceptación completa de QA-018 por interfaz, deben verificarse manualmente, **con una venta nueva desechable y un usuario autorizado**, la anulación, la reposición única de existencias/Kardex, la persistencia histórica y el rechazo a la segunda anulación. La interfaz actual de reporte presenta el estado, pero no incorpora un botón de anulación; las rutas de backend están cubiertas por pruebas automatizadas. Este control queda registrado como pendiente específico de promoción, no como un resultado manual aprobado.
+
+### Seguridad de datos que se mantiene
+
+- No ejecutar `migrate:fresh`, `db:wipe` ni pruebas `RefreshDatabase` contra `totalplus_phase02_testing`.
+- Ejecutar pruebas destructivas únicamente contra `totalplus_qa013_tests` después de verificar la conexión real.
+- Conservar el respaldo SQL probado y la base de restauración hasta terminar cualquier promoción.
+- No cambiar la rama `main` ni producción sin una decisión de despliegue por separado.
+
+**Estado resumido:** desarrollo y validación QA Fases 0–2: **cerrados**; promoción a producción y prueba manual end-to-end de anulación: **pendientes explícitos**.

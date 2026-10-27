@@ -9,6 +9,7 @@ use App\Models\PurchaseReceipt;
 use App\Models\PurchaseReceiptLine;
 use App\Services\Inventory\InventoryService;
 use DomainException;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 class PurchaseReceiptService
@@ -43,7 +44,8 @@ class PurchaseReceiptService
             );
         }
 
-        return DB::transaction(function () use (
+        try {
+            return DB::transaction(function () use (
             $companyId,
             $purchaseOrderId,
             $warehouseId,
@@ -243,6 +245,27 @@ class PurchaseReceiptService
             }
 
             return $receipt->fresh()->load('lines');
-        }, 3);
+            }, 3);
+        } catch (QueryException $exception) {
+            /*
+             * Different orders lock different rows, so a simultaneous
+             * duplicate key can be detected by the database unique index.
+             * Translate only proven key collisions; preserve other SQL errors.
+             */
+            if (
+                $receiptKey !== null
+                && (string) $exception->getCode() === '23000'
+                && PurchaseReceipt::query()
+                    ->where('company_id', $companyId)
+                    ->where('idempotency_key', $receiptKey)
+                    ->exists()
+            ) {
+                throw new PurchaseReceiptAlreadyExistsException(
+                    'Receipt key was already posted.'
+                );
+            }
+
+            throw $exception;
+        }
     }
 }

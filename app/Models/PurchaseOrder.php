@@ -13,6 +13,11 @@ class PurchaseOrder extends Model
 
     protected $fillable = ['supplier_id', 'tracking_number', 'shipping_cost'];
 
+    public function lines()
+    {
+        return $this->hasMany(PurchaseOrderProduct::class, 'purchase_order_id');
+    }
+
     public function supplier()
     {
         return $this->belongsTo(Supplier::class);

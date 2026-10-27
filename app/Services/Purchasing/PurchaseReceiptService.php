@@ -152,6 +152,17 @@ class PurchaseReceiptService
                 }
             }
 
+            $hasRemaining = $orderLines->contains(function ($line) use ($previous) {
+                return (int) $line->quantity
+                    > (int) ($previous[(int) $line->id] ?? 0);
+            });
+
+            if (!$hasRemaining) {
+                throw new PurchaseReceiptAlreadyExistsException(
+                    'Purchase order is fully received.'
+                );
+            }
+
             $toReceive = [];
 
             foreach ($orderLines as $line) {
@@ -173,6 +184,11 @@ class PurchaseReceiptService
                     $quantity = $requestedById[$id];
                 } else {
                     $quantity = $remaining;
+                }
+
+                // A complete-remainder request skips lines already filled.
+                if ($requestedById === null && $quantity === 0) {
+                    continue;
                 }
 
                 if ($quantity <= 0 || $quantity > $remaining) {

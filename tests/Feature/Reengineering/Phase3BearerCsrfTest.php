@@ -19,19 +19,23 @@ class Phase3BearerCsrfTest extends TestCase
     public function test_nextauth_bearer_api_does_not_run_stateful_session_csrf_globally(): void
     {
         $kernel = app(Kernel::class);
+        $reflection = new \ReflectionClass($kernel);
+        $globalStack = $reflection->getProperty('middleware')->getValue($kernel);
+        $groups = $reflection->getProperty('middlewareGroups')->getValue($kernel);
+
         $this->assertNotContains(
             EnsureFrontendRequestsAreStateful::class,
-            $kernel->getMiddleware()
+            $globalStack
         );
         $this->assertNotContains(
             EnsureFrontendRequestsAreStateful::class,
-            $kernel->getMiddlewareGroups()['api']
+            $groups['api']
         );
 
         // Normal Laravel web forms must remain CSRF protected.
         $this->assertContains(
             \App\Http\Middleware\VerifyCsrfToken::class,
-            $kernel->getMiddlewareGroups()['web']
+            $groups['web']
         );
     }
 

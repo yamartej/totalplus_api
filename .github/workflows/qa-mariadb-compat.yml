@@ -1,7 +1,7 @@
 name: TotalPlus QA MariaDB compatibility
 on:
   pull_request:
-    branches: [main, 'reengineering/phase0-2-20261025']
+    branches: [main, 'reengineering/phase0-2-20261025', 'reengineering/phase3-operations-20261026']
   workflow_dispatch:
 
 permissions:
@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   mariadb-feature:
-    if: github.event_name == 'pull_request' && (github.head_ref == 'reengineering/phase0-2-20261025' || github.head_ref == 'reengineering/phase3-operations-20261026')
+    if: github.event_name == 'pull_request' && (github.head_ref == 'reengineering/phase0-2-20261025' || github.head_ref == 'reengineering/phase3-operations-20261026' || github.head_ref == 'reengineering/phase4-financial-reconciliation-20261028')
     runs-on: ubuntu-latest
     timeout-minutes: 40
     services:

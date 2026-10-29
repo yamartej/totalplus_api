@@ -27,6 +27,7 @@ use App\Http\Controllers\TokenVerificationController;
 use App\Http\Controllers\BatchController;
 use App\Http\Controllers\CostController;
 use App\Http\Controllers\CreditDetailController;
+use App\Http\Controllers\FinancialReconciliationController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WarehouseController;
 use App\Http\Controllers\CreditCustomerDetail;
@@ -194,6 +195,7 @@ Route::middleware('auth:sanctum',)->group(function () {
     Route::delete('/costs/{id}', [CostController::class, 'destroy'])->middleware('permission:costs.delete');
 
     // Rutas para Detalle de Pagos por factura
+    Route::get('/credits/reconciliation', [FinancialReconciliationController::class, 'index'])->middleware('permission:credits.view');
     Route::get('/credit-details', [CreditDetailController::class, 'index'])->middleware('permission:credits.view');
     Route::post('/credit-details', [CreditDetailController::class, 'store'])->middleware('permission:credits.create');
     Route::delete('/credit-details/{id}', [CreditDetailController::class, 'destroy'])->middleware('permission:credits.delete');

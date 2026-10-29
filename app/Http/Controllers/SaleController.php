@@ -373,9 +373,14 @@ class SaleController extends Controller
         Request $request,
         TenantContext $tenant
     ) {
+        // This legacy endpoint creates a credit debt (not a refund).
+        // A negative, zero or over-precision value must never reach the ledger.
         $request->validate([
             'customer_id' => 'required|integer',
-            'amount' => 'required|numeric',
+            'amount' => ['required', 'numeric', 'gt:0', 'max:999999.99',
+                'regex:/^\\d+(\\.\\d{1,2})?$/'],
+            'credit_note_date' => 'sometimes|nullable|date',
+            'credit_note_detail' => 'sometimes|nullable|string|max:2000',
         ]);
 
         $companyId = $tenant->resolveCompanyId(

@@ -33,7 +33,8 @@ class CreditCustomerDetailController extends Controller
     {
         $data = $request->validate([
             'customer_id' => 'required|integer|exists:customers,id',
-            'amount' => 'required|numeric|gt:0',
+            'amount' => ['required', 'numeric', 'gt:0',
+                'regex:/^\\d+(\\.\\d{1,2})?$/'],
             'detail' => 'nullable|string|max:255',
             'payment_date' => 'required|date',
         ]);

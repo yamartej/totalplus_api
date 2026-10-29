@@ -165,4 +165,49 @@ class FinancialReconciliationPhase4Test extends TestCase
             'total_amount' => 50,
         ]);
     }
+
+    public function test_manual_credit_and_payments_reject_negative_and_sub_cent_amounts(): void
+    {
+        $company = Company::create(['name' => 'Finance Amount Guards']);
+        $customer = $this->customer($company, 99006);
+        $sale = $this->credit($customer, $company->id, 100);
+        Sanctum::actingAs($this->actor($company, ['credits.create']));
+
+        foreach ([-10, 0, 0.001, 15.999] as $amount) {
+            $this->postJson('/api/sales/credit-customer-register', [
+                'company_id' => $company->id,
+                'customer_id' => $customer->id,
+                'amount' => $amount,
+            ])->assertStatus(422);
+
+            $this->postJson('/api/credit-details', [
+                'company_id' => $company->id,
+                'sale_id' => $sale->id,
+                'amount' => $amount,
+                'payment_date' => '2026-10-28',
+            ])->assertStatus(422);
+
+            $this->postJson('/api/credit-customer-details', [
+                'company_id' => $company->id,
+                'customer_id' => $customer->id,
+                'amount' => $amount,
+                'payment_date' => '2026-10-28',
+            ])->assertStatus(422);
+        }
+
+        $this->assertSame(1, Sale::count());
+        $this->assertSame(0, CreditDetail::count());
+        $this->assertSame(0, CreditCustomerDetail::count());
+
+        $this->postJson('/api/credit-details', [
+            'sale_id' => $sale->id,
+            'amount' => 12.50,
+            'payment_date' => '2026-10-28',
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('credit_details', [
+            'sale_id' => $sale->id,
+            'amount' => 12.50,
+        ]);
+    }
 }

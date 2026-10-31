@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\PurchaseReceiptAlreadyExistsException;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseReceipt;
 use App\Models\Warehouse;
 use App\Services\Purchasing\PurchaseReceiptService;
 use App\Services\Tenancy\TenantContext;
@@ -12,6 +13,32 @@ use Illuminate\Http\Request;
 
 class PurchaseReceiptController extends Controller
 {
+    public function index(Request $request, $id, TenantContext $tenantContext)
+    {
+        $companyId = $tenantContext->resolveCompanyId(
+            $request->user(),
+            $request->query('company_id')
+        );
+
+        $order = PurchaseOrder::query()
+            ->where('company_id', $companyId)
+            ->find($id);
+
+        if (!$order) {
+            return response()->json([
+                'message' => 'Orden de compra no encontrada',
+            ], 404);
+        }
+
+        return response()->json(
+            PurchaseReceipt::query()
+                ->where('purchase_order_id', $order->id)
+                ->with('lines')
+                ->orderBy('id')
+                ->get()
+        );
+    }
+
     public function store(
         Request $request,
         $id,
@@ -21,6 +48,10 @@ class PurchaseReceiptController extends Controller
         $request->validate([
             'warehouse_id' => 'required|integer',
             'company_id' => 'sometimes|nullable',
+            'receipt_key' => 'required_with:lines|nullable|string|max:100',
+            'lines' => 'sometimes|required|array|min:1',
+            'lines.*.purchase_order_product_id' => 'required|integer|distinct|min:1',
+            'lines.*.quantity' => 'required|integer|min:1',
         ]);
 
         $companyId = $tenantContext->resolveCompanyId(
@@ -66,7 +97,9 @@ class PurchaseReceiptController extends Controller
                 $companyId,
                 (int) $purchaseOrder->id,
                 (int) $warehouse->id,
-                (int) $request->user()->id
+                (int) $request->user()->id,
+                $request->has('lines') ? $request->input('lines') : null,
+                $request->input('receipt_key')
             );
 
             return response()->json($receipt, 201);

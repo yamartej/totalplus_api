@@ -16,11 +16,17 @@ class PurchaseReceipt extends Model
         'warehouse_id',
         'received_by_user_id',
         'received_at',
+        'idempotency_key',
     ];
 
     protected $casts = [
         'received_at' => 'datetime',
     ];
+
+    public function lines()
+    {
+        return $this->hasMany(PurchaseReceiptLine::class, 'purchase_receipt_id');
+    }
 
     public function purchaseOrder()
     {

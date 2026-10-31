@@ -29,7 +29,7 @@ class InventoryTransferController extends Controller
             'destination_warehouse_id' => 'required|integer|different:source_warehouse_id|exists:warehouses,id',
             'product_id' => 'required|integer|exists:products,id',
             'quantity' => 'required|integer|min:1',
-            'reference_type' => 'sometimes|nullable|string|max:100',
+            'reference_type' => ['sometimes', 'nullable', 'string', 'max:100', 'regex:/^manual_[a-z0-9_]+$/'],
             'reference_id' => 'sometimes|nullable|integer|min:1',
             'notes' => 'sometimes|nullable|string',
         ]);

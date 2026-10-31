@@ -21,7 +21,11 @@ class Kernel extends HttpKernel
         \Illuminate\Foundation\Http\Middleware\ValidatePostSize::class,
         \App\Http\Middleware\TrimStrings::class,
         \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
-        \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
+        // TotalPlus authenticates /api/* with explicit Sanctum Bearer tokens via
+        // NextAuth. Do NOT put EnsureFrontendRequestsAreStateful in the global
+        // stack: a localhost:3000 Origin is interpreted as cookie-session auth,
+        // causing HTTP 419 on Bearer POST /api/suppliers and other writes.
+        // The "web" group below still enforces normal cookie-session CSRF.
     ];
 
     /**

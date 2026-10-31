@@ -34,9 +34,9 @@ class Qa018SaleVoidHttpGateTest extends TestCase
     // Guard the hook itself so a local QA or production DB cannot be reset.
     public function refreshDatabase()
     {
-        $database = \\DB::connection()->getDatabaseName();
+        $database = \DB::connection()->getDatabaseName();
         if (!$this->app->environment('testing') || $database !== 'totalplus_ci_qa018') {
-            throw new \\RuntimeException(
+            throw new \RuntimeException(
                 'QA-018 is CI only. Refusing to migrate/reset database: ' . $database
             );
         }

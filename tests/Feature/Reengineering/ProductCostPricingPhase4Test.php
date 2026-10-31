@@ -387,6 +387,10 @@ class ProductCostPricingPhase4Test extends TestCase
     {
         $ctx = $this->context();
 
+        // Pricing is permitted only after the company's batch is received.
+        $ctx['ownBatch']->status = 'received';
+        $ctx['ownBatch']->save();
+
         $response = $this
             ->withHeaders(
                 $this->authHeaders(

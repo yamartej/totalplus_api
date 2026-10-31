@@ -75,7 +75,7 @@ class ProductController extends Controller
             'price' => $request->input('price'),
             'image' => $request->input('image'),
             'category_id' => $request->input('category_id'),
-            'quantity' => $request->input('quantity'),
+            'quantity' => $request->input('quantity', 0),
             'batch_id' => $batchId,
 
             // These columns are NOT NULL in the legacy schema and the
@@ -191,7 +191,7 @@ class ProductController extends Controller
             'price' => $request->input('price'),
             'image' => $request->input('image'),
             'category_id' => $request->input('category_id'),
-            'quantity' => $request->input('quantity'),
+            'quantity' => $request->input('quantity', $product->quantity),
             'batch_id' => $batchId,
         ]);
 
@@ -543,12 +543,8 @@ class ProductController extends Controller
                 'inventories' => $inventoryScope,
                 'inventories.warehouse',
             ])
-            ->whereHas(
-                'batches.costs',
-                function ($costQuery) {
-                    $costQuery->where('amount', '>', 0);
-                }
-            )
+            // A product must remain visible for price preparation even
+            // when its batch has no additional shipping/commission costs.
             ->get()
             ->map(
                 function (Product $product) use (
@@ -650,9 +646,9 @@ class ProductController extends Controller
     ) {
         $request->validate([
             'id' => 'required|integer',
-            'final_cost' => 'required|numeric|min:0',
+            'final_cost' => 'required|numeric|gt:0',
             'wholesale_final_cost' =>
-                'required|numeric|min:0',
+                'required|numeric|gt:0',
         ]);
 
         $companyId = $tenantContext->resolveCompanyId(
@@ -684,6 +680,18 @@ class ProductController extends Controller
             return response()->json([
                 'message' => 'Producto no encontrado',
             ], 404);
+        }
+
+        $batch = $product->batches;
+        if (
+            !$batch
+            || $batch->status !== 'received'
+            || (int) $batch->company_id !== $companyId
+        ) {
+            return response()->json([
+                'message' =>
+                    'Solo se pueden configurar precios de venta para productos de lotes recibidos de la empresa.',
+            ], 422);
         }
 
         $product->update([

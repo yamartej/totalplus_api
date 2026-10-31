@@ -3,84 +3,76 @@
 namespace App\Http\Controllers;
 
 use App\Models\CreditDetail;
+use App\Models\Sale;
+use App\Services\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class CreditDetailController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
-    public function index()
+    private function sales(Request $request, TenantContext $tenant): Builder
     {
-        $creditDetail = CreditDetail::all();
-        return response()->json($creditDetail);
+        $companyId = $tenant->resolveCompanyId($request->user(), $request->input('company_id', $request->query('company_id')));
+        $query = Sale::query();
+        if ($companyId !== null) {
+            $query->where(function (Builder $sales) use ($companyId) {
+                $sales->where('company_id', $companyId)
+                    ->orWhere(function (Builder $legacy) use ($companyId) {
+                        $legacy->whereNull('company_id')->whereHas('customer', function (Builder $customer) use ($companyId) {
+                            $customer->where('company_id', $companyId);
+                        });
+                    });
+            });
+        }
+        return $query;
     }
 
-    /**
-     * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
-    public function store(Request $request)
+    public function index(Request $request, TenantContext $tenant)
     {
-        $request->validate([
-            'amount' => 'required|numeric|min:0',
+        $sales = $this->sales($request, $tenant)->select('sales.id');
+        return response()->json(CreditDetail::whereIn('sale_id', $sales)->get());
+    }
+
+    public function store(Request $request, TenantContext $tenant)
+    {
+        $data = $request->validate([
+            'sale_id' => 'required|integer|exists:sales,id',
+            'amount' => 'required|numeric|gt:0',
             'detail' => 'nullable|string|max:255',
             'payment_date' => 'required|date',
         ]);
-
-        $creditDetail = CreditDetail::create([
-            'sale_id' => $request->input('sale_id'),
-            'amount' => $request->input('amount'),
-            'payment_date' => $request->input('payment_date'),
-            'detail' => $request->input('detail'),
-        ]);
-
-        return response()->json($creditDetail, 201);
+        return DB::transaction(function () use ($request, $tenant, $data) {
+            $sale = $this->sales($request, $tenant)->whereKey($data['sale_id'])->lockForUpdate()->first();
+            if (!$sale) {
+                return response()->json(['message' => 'Venta no encontrada'], 404);
+            }
+            if ($sale->voided_at !== null) {
+                throw ValidationException::withMessages([
+                    'sale_id' => ['No se admiten pagos sobre ventas anuladas.'],
+                ]);
+            }
+            if ($sale->type_of_sale !== 'credit') {
+                throw ValidationException::withMessages(['sale_id' => ['La venta no es a crédito.']]);
+            }
+            $paid = CreditDetail::where('sale_id', $sale->id)->sum('amount');
+            if ((float) $data['amount'] > round((float) $sale->total_amount - (float) $paid, 2)) {
+                throw ValidationException::withMessages(['amount' => ['El pago supera el saldo pendiente.']]);
+            }
+            return response()->json(CreditDetail::create($data), 201);
+        }, 3);
     }
 
-    /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show($id)
+    public function destroy($id, Request $request, TenantContext $tenant)
     {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function update(Request $request, $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function destroy($id)
-    {
-        $creditDetail = CreditDetail::find($id);
-
-        if (!$creditDetail) {
-            return response()->json(['message' => 'Pago no encontrado'], 404);
-        }
-
-        $creditDetail->delete();
-
-        return response()->json(['message' => 'Pago eliminado correctamente'], 200);
+        return DB::transaction(function () use ($id, $request, $tenant) {
+            $detail = CreditDetail::whereKey($id)->lockForUpdate()->first();
+            if (!$detail || !$this->sales($request, $tenant)->whereKey($detail->sale_id)->exists()) {
+                return response()->json(['message' => 'Pago no encontrado'], 404);
+            }
+            $detail->delete();
+            return response()->json(null, 204);
+        }, 3);
     }
 }

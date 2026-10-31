@@ -18,6 +18,13 @@ class Sale extends Model
         'credit_note_date',
         'credit_note_detail',
         'company_id',
+        'voided_at',
+        'voided_by',
+        'void_reason',
+    ];
+
+    protected $casts = [
+        'voided_at' => 'datetime',
     ];
 
     public function customer()
@@ -33,6 +40,13 @@ class Sale extends Model
         return $this->belongsTo(PointOfSale::class);
     }
     public function details()
+    {
+        return $this->hasMany(SaleDetail::class)
+            ->whereNull('removed_at');
+    }
+
+    // Audit history includes details withdrawn from the sale.
+    public function allDetails()
     {
         return $this->hasMany(SaleDetail::class);
     }

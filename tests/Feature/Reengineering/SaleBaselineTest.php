@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Reengineering;
 
+use App\Models\Batch;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Inventory;
@@ -53,6 +54,9 @@ class SaleBaselineTest extends TestCase
             'identifier' => 'POS-PHASE0-' . uniqid(),
             'ubication' => 'Testing',
             'company_id' => $company->id,
+            'status' => 'open',
+            'seller_id' => $seller->id,
+            'seller' => $seller->name,
         ]);
 
         $productA = Product::factory()->create([
@@ -68,6 +72,22 @@ class SaleBaselineTest extends TestCase
             'final_cost' => 200,
             'wholesale_final_cost' => 180,
         ]);
+
+        $batch = Batch::create([
+            'name' => 'Phase 0 Sales Received ' . uniqid(),
+            'description' => 'Received batch for sales baseline',
+            'quantity' => 20,
+            'status' => 'received',
+            'order_creation_date' => '2026-10-25 12:00:00',
+        ]);
+        $batch->company_id = $company->id;
+        $batch->save();
+
+        foreach ([$productA, $productB] as $product) {
+            $product->company_id = $company->id;
+            $product->batch_id = $batch->id;
+            $product->save();
+        }
 
         $inventoryA = Inventory::create([
             'product_id' => $productA->id,
@@ -318,6 +338,9 @@ class SaleBaselineTest extends TestCase
             ->deleteJson('/api/sales/' . $sale->id);
 
         $deleteResponse->assertStatus(204);
+        $this->assertNotNull($sale->fresh()->voided_at);
+        $this->assertSame('manual', $sale->fresh()->void_reason);
+        $this->assertSame(2, $sale->fresh()->allDetails()->count());
 
         $this->assertSame(
             10,

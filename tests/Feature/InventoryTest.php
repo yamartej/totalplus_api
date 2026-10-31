@@ -1,137 +1,66 @@
 <?php
 
-namespace Tests\Feature;
-// tests/Unit/InventoryTest.php
-
 namespace Tests\Unit;
 
-use Tests\TestCase;
-use App\Models\User;
 use App\Models\Inventory;
-use Illuminate\Foundation\Testing\RefreshDatabase;
+use App\Models\Product;
+use App\Models\Warehouse;
+use Illuminate\Database\Eloquent\Model;
+use Tests\Support\AuthenticatedCrudContract;
 
-class InventoryTest extends TestCase
+/** Inventory API requires explicit company warehouse and valid product balance. */
+class InventoryTest extends AuthenticatedCrudContract
 {
-    use RefreshDatabase;
+    protected string $endpoint = '/api/inventory';
+    protected string $modelClass = Inventory::class;
 
-    public function test_all_inventory()
+    private function warehouse(): Warehouse
     {
-        $user = User::factory()->create();
-        $token = $user->createToken('test-token')->plainTextToken;
-
-        Inventory::factory()->count(3)->create();
-
-        $response = $this->withHeaders([
-            'Authorization' => "Bearer $token",
-        ])->get('/api/inventory');
-
-        //$response = $this->get('/api/products');
-
-        $response->assertStatus(200);
-
-        $response->assertJsonStructure([
-            '*' => [
-                'product_id',
-                'quantity',
-                'created_at',
-                'updated_at',
-            ],
+        return Warehouse::create([
+            'name' => 'QA Warehouse '.uniqid(), 'address' => 'QA',
+            'description' => 'QA', 'company_id' => $this->qaCompany->id,
         ]);
     }
 
-
-    public function test_create_inventory()
+    private function product(): Product
     {
-        $user = User::factory()->create();
-        $token = $user->createToken('test-token')->plainTextToken;
+        return Product::factory()->create(['company_id' => $this->qaCompany->id]);
+    }
 
-        // Creamos un producto primero para obtener su ID
-        $product = \App\Models\Product::factory()->create();
+    protected function fixture(): Model
+    {
+        return Inventory::create([
+            'product_id' => $this->product()->id,
+            'warehouse_id' => $this->warehouse()->id,
+            'quantity' => 5,
+        ]);
+    }
 
-        // Datos para la creación del inventario
-        $data = [
-            'product_id' => $product->id, // Asegúrate de proporcionar un product_id válido
-            'quantity' => 10,
+    protected function createPayload(): array
+    {
+        return [
+            'product_ids' => [['id' => $this->product()->id, 'quantity' => 5]],
+            'warehouse_id' => $this->warehouse()->id,
         ];
-
-        //$response = $this->postJson('/api/inventory', $data);
-        $response = $this->withHeaders([
-            'Authorization' => "Bearer $token",
-        ])->postJson('/api/inventory', $data);
-
-        $response->assertStatus(201)
-            ->assertJson([
-                'product_id' => $product->id,
-                'quantity' => 10,
-            ]);
     }
 
-    public function test_get_inventory()
+    protected function updatePayload(): array
     {
-        $user = User::factory()->create();
-        $token = $user->createToken('test-token')->plainTextToken;
-
-        $product = \App\Models\Product::factory()->create();
-
-        $inventory = Inventory::factory()->create([
-            'product_id' => $product->id,
-            'quantity'  => '20',
-        ]);
-
-        $response = $this->withHeaders([
-            'Authorization' => "Bearer $token",
-        ])->getJson('/api/inventory/' . $inventory->id);
-
-        $response->assertStatus(200);
-
-        $response->assertJsonStructure();
+        return ['quantity' => 8];
     }
 
-    public function test_put_inventory()
+    protected function idFromCreationResponse(array $json): int
     {
-        $user = User::factory()->create();
-        $token = $user->createToken('test-token')->plainTextToken;
-
-        // Creamos un producto primero para obtener su ID
-        $product = \App\Models\Product::factory()->create();
-
-        $inventory = Inventory::factory()->create([
-            'product_id' => $product->id,
-            'quantity'  => '20',
-        ]);
-
-        // Datos para la creación del inventario
-        $data = [
-            'quantity' => 10,
-        ];
-
-
-        $response = $this->withHeaders([
-            'Authorization' => "Bearer $token",
-        ])->putJson('/api/inventory/' . $inventory->id, $data);
-        $response->assertStatus(200);
-
-        $response->assertJson($data);
+        return (int) $json['inventories'][0]['id'];
     }
-    public function test_delete_inventory()
+
+    public function test_delete_record(): void
     {
-        $user = User::factory()->create();
-        $token = $user->createToken('test-token')->plainTextToken;
+        $record = $this->fixture();
+        $this->deleteJson($this->endpoint . '/' . $record->id)
+            ->assertNoContent();
 
-        $product = \App\Models\Product::factory()->create();
-
-        $inventory = Inventory::factory()->create([
-            'product_id' => $product->id,
-            'quantity'  => '20',
-        ]);
-
-        $response = $this->withHeaders([
-            'Authorization' => "Bearer $token",
-        ])->deleteJson('/api/inventory/' . $inventory->id);
-
-
-        $response->assertStatus(204);
-
-        $this->assertDatabaseMissing('inventories', ['id' => $inventory->id]);
+        // Stock movement is retained: balance is deactivated at zero.
+        $this->assertSame(0, (int) $record->fresh()->quantity);
     }
 }

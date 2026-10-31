@@ -110,6 +110,7 @@ class SaleController extends Controller
             Sale::with([
                 'customer',
                 'details.product.inventory',
+                'allDetails.product',
                 'paymentDetails',
             ])->orderBy('created_at', 'desc'),
             $request,
@@ -194,7 +195,7 @@ class SaleController extends Controller
             ], 422);
         } catch (\Throwable $e) {
             return response()->json([
-                'error' => $e->getMessage(),
+                'message' => 'No se pudo completar la operación.',
             ], 500);
         }
     }
@@ -239,13 +240,23 @@ class SaleController extends Controller
             ], 404);
         }
 
-        $sale->update([
-            'total_amount' => $request->input('total_amount'),
-            'credit_note_detail' =>
-                $request->input('credit_note_detail'),
-            'credit_note_date' =>
-                $request->input('credit_note_date', now()),
+        // The sale total is authoritative: only SaleTransactionService may recalculate it.
+        $request->validate([
+            'credit_note_detail' => 'sometimes|nullable|string|max:2000',
+            'credit_note_date' => 'sometimes|nullable|date',
+            'total_amount' => 'prohibited',
         ]);
+
+        if ($sale->voided_at !== null) {
+            return response()->json([
+                'message' => 'No se puede modificar una venta anulada.',
+            ], 422);
+        }
+
+        $sale->update($request->only([
+            'credit_note_detail',
+            'credit_note_date',
+        ]));
 
         return response()->json($sale, 200);
     }
@@ -296,7 +307,7 @@ class SaleController extends Controller
             ], 422);
         } catch (\Throwable $e) {
             return response()->json([
-                'error' => $e->getMessage(),
+                'message' => 'No se pudo completar la operación.',
             ], 500);
         }
     }
@@ -311,6 +322,7 @@ class SaleController extends Controller
                 'paymentDetails',
             ])
                 ->where('type_of_sale', 'credit')
+                ->whereNull('sales.voided_at')
                 ->orderBy('created_at', 'desc'),
             $request,
             $tenant
@@ -330,6 +342,7 @@ class SaleController extends Controller
                     DB::raw('SUM(total_amount) as total_debt')
                 )
                 ->where('type_of_sale', 'credit')
+                ->whereNull('sales.voided_at')
                 ->groupBy('customer_id'),
             $request,
             $tenant
@@ -429,6 +442,7 @@ class SaleController extends Controller
         [$query] = $this->scopeSales(
             Sale::with(['customer'])
                 ->where('type_of_sale', 'credit')
+                ->whereNull('sales.voided_at')
                 ->orderBy('created_at', 'desc'),
             $request,
             $tenant
@@ -462,6 +476,7 @@ class SaleController extends Controller
         [$query] = $this->scopeSales(
             Sale::with(['customer'])
                 ->where('type_of_sale', 'credit')
+                ->whereNull('sales.voided_at')
                 ->orderBy('created_at', 'desc'),
             $request,
             $tenant,
@@ -500,6 +515,7 @@ class SaleController extends Controller
                     DB::raw('SUM(total_amount) as total_debt')
                 )
                 ->where('type_of_sale', 'credit')
+                ->whereNull('sales.voided_at')
                 ->groupBy('customer_id'),
             $request,
             $tenant,
@@ -541,6 +557,7 @@ class SaleController extends Controller
             Sale::with([
                 'customer',
                 'details.product.inventory',
+                'allDetails.product',
                 'paymentDetails',
             ])->orderBy('created_at', 'desc'),
             $request,

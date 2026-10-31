@@ -40,6 +40,30 @@ class SaleTransactionService
             $carts,
             $actorUserId
         ) {
+            // The register must still be open at the exact moment of sale.
+            // Locking it prevents a concurrent close from slipping between
+            // validation and the inventory/financial transaction.
+            $activePop = PointOfSale::query()
+                ->whereKey($pop->id)
+                ->lockForUpdate()
+                ->first();
+
+            if (
+                !$activePop
+                || (int) $activePop->company_id !== $companyId
+                || $activePop->status !== 'open'
+            ) {
+                throw new DomainException(
+                    'La caja debe estar abierta para registrar ventas.'
+                );
+            }
+
+            if ((int) $activePop->seller_id !== (int) $seller->id) {
+                throw new DomainException(
+                    'El vendedor no está asignado a la caja abierta.'
+                );
+            }
+
             $lines = $this->prepareLines(
                 $companyId,
                 $carts
@@ -114,8 +138,22 @@ class SaleTransactionService
                 $companyId
             );
 
+            if ($lockedSale->voided_at !== null) {
+                throw new DomainException(
+                    'La venta ya está anulada.'
+                );
+            }
+
+            // Financial payments must never be erased by the sales cascade.
+            if ($lockedSale->paymentDetails()->exists()) {
+                throw new DomainException(
+                    'Cannot void a sale with recorded payments. Reconcile or reverse the payments first.'
+                );
+            }
+
             $details = SaleDetail::query()
                 ->where('sale_id', $lockedSale->id)
+                ->whereNull('removed_at')
                 ->orderBy('id')
                 ->lockForUpdate()
                 ->get();
@@ -144,11 +182,12 @@ class SaleTransactionService
                 );
             }
 
-            foreach ($details as $detail) {
-                $detail->delete();
-            }
-
-            $lockedSale->delete();
+            // Keep the sale, its lines and original amount for audit.
+            // Stock is reversed only once, guarded by the sale-row lock.
+            $lockedSale->voided_at = now();
+            $lockedSale->voided_by = $actorUserId;
+            $lockedSale->void_reason = 'manual';
+            $lockedSale->save();
         }, 3);
     }
 
@@ -196,6 +235,24 @@ class SaleTransactionService
                 $lockedSale,
                 $companyId
             );
+
+            if ($lockedSale->voided_at !== null) {
+                throw new DomainException(
+                    'No se puede modificar una venta anulada.'
+                );
+            }
+
+            if ($lockedDetail->removed_at !== null) {
+                throw new DomainException(
+                    'El detalle ya fue retirado de la venta.'
+                );
+            }
+
+            if ($lockedSale->paymentDetails()->exists()) {
+                throw new DomainException(
+                    'No se pueden modificar detalles de una venta con pagos registrados.'
+                );
+            }
 
             $productId = $this->detailProductId(
                 $lockedDetail
@@ -306,6 +363,24 @@ class SaleTransactionService
                 $companyId
             );
 
+            if ($lockedSale->voided_at !== null) {
+                throw new DomainException(
+                    'No se puede modificar una venta anulada.'
+                );
+            }
+
+            if ($lockedDetail->removed_at !== null) {
+                throw new DomainException(
+                    'El detalle ya fue retirado de la venta.'
+                );
+            }
+
+            if ($lockedSale->paymentDetails()->exists()) {
+                throw new DomainException(
+                    'No se pueden modificar detalles de una venta con pagos registrados.'
+                );
+            }
+
             $productId = $this->detailProductId(
                 $lockedDetail
             );
@@ -335,20 +410,29 @@ class SaleTransactionService
             $detailId = $lockedDetail->id;
             $saleId = $lockedSale->id;
 
-            $lockedDetail->delete();
+            // Retain the original line, price and quantity for audit.
+            $lockedDetail->removed_at = now();
+            $lockedDetail->removed_by = $actorUserId;
+            $lockedDetail->save();
 
             $remainingDetails = SaleDetail::query()
                 ->where('sale_id', $saleId)
+                ->whereNull('removed_at')
                 ->count();
 
             if ($remainingDetails === 0) {
-                $lockedSale->delete();
+                // Preserve the original sale total as historical evidence.
+                $lockedSale->voided_at = now();
+                $lockedSale->voided_by = $actorUserId;
+                $lockedSale->void_reason = 'all_details_removed';
+                $lockedSale->save();
 
                 return [
                     'detail_id' => $detailId,
                     'sale_id' => $saleId,
-                    'sale_deleted' => true,
-                    'sale' => null,
+                    'sale_deleted' => false,
+                    'sale_voided' => true,
+                    'sale' => $lockedSale->fresh(),
                 ];
             }
 
@@ -360,6 +444,7 @@ class SaleTransactionService
                 'detail_id' => $detailId,
                 'sale_id' => $saleId,
                 'sale_deleted' => false,
+                'sale_voided' => false,
                 'sale' => $lockedSale->fresh(),
             ];
         }, 3);
@@ -404,6 +489,28 @@ class SaleTransactionService
             ) {
                 throw new DomainException(
                     'Product does not belong to the selected company.'
+                );
+            }
+
+            // Inventory assignment is not authorization to sell:
+            // the batch must first be received and explicitly priced.
+            $batch = $product->batches;
+            if (
+                !$batch
+                || $batch->status !== 'received'
+                || (int) $batch->company_id !== $companyId
+            ) {
+                throw new DomainException(
+                    'El producto debe pertenecer a un lote recibido de la empresa antes de venderse.'
+                );
+            }
+
+            if (
+                $this->moneyToCents($product->final_cost ?? 0) <= 0
+                || $this->moneyToCents($product->wholesale_final_cost ?? 0) <= 0
+            ) {
+                throw new DomainException(
+                    'Configura los precios de venta al detal y al mayor antes de vender el producto.'
                 );
             }
 
@@ -630,9 +737,9 @@ class SaleTransactionService
 
         $cents = $this->moneyToCents($price);
 
-        if ($cents < 0) {
+        if ($cents <= 0) {
             throw new DomainException(
-                'Sale price cannot be negative.'
+                'Sale price must be greater than zero.'
             );
         }
 
@@ -644,6 +751,7 @@ class SaleTransactionService
     ): void {
         $details = SaleDetail::query()
             ->where('sale_id', $sale->id)
+            ->whereNull('removed_at')
             ->orderBy('id')
             ->get();
 

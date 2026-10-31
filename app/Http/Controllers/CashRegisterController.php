@@ -27,13 +27,15 @@ class CashRegisterController extends Controller
         return new CashRegisterResource($cash_register);
     }
 
-    public function show(CashRegister $cash_register)
+    public function show($id)
     {
-        return new CashRegisterResource($cash_register);
+        $record = CashRegister::findOrFail($id);
+        return new CashRegisterResource($record);
     }
 
-    public function put(Request $request, CashRegister $cash_register)
+    public function put(Request $request, $id)
     {
+        $cash_register = CashRegister::findOrFail($id);
         $data = $request->validate([
             'name' => 'required|string|max:255',
             'warehouse_id' => 'required|exists:warehouses,id',

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Security;
 
+use App\Models\Batch;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Inventory;
@@ -76,13 +77,15 @@ class SaleTenantIsolationTest extends TestCase
         ]);
     }
 
-    private function pop(Company $company): PointOfSale
+    private function pop(Company $company, ?User $seller = null): PointOfSale
     {
         return PointOfSale::create([
             'company_id' => $company->id,
             'identifier' => 'POS-' . uniqid(),
             'ubication' => 'Testing',
-            'status' => 'created',
+            'status' => 'open',
+            'seller_id' => $seller?->id,
+            'seller' => $seller?->name,
         ]);
     }
 
@@ -103,6 +106,20 @@ class SaleTenantIsolationTest extends TestCase
             'final_cost' => 100,
             'wholesale_final_cost' => 90,
         ]);
+
+        $batch = Batch::create([
+            'name' => 'Tenant Sale Received ' . uniqid(),
+            'description' => 'Received batch for tenant sale',
+            'quantity' => max(1, $quantity),
+            'status' => 'received',
+            'order_creation_date' => '2026-10-25 12:00:00',
+        ]);
+        $batch->company_id = $company->id;
+        $batch->save();
+
+        $product->company_id = $company->id;
+        $product->batch_id = $batch->id;
+        $product->save();
 
         $inventory = Inventory::create([
             'product_id' => $product->id,
@@ -172,7 +189,7 @@ class SaleTenantIsolationTest extends TestCase
         $company = Company::create(['name' => 'Company A']);
         $actor = $this->user($company, true);
         $customer = $this->customer($company);
-        $pop = $this->pop($company);
+        $pop = $this->pop($company, $actor);
         [$product, $inventory] =
             $this->productInventory($company, 10);
 

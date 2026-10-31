@@ -1,0 +1,72 @@
+name: TotalPlus QA isolated backend
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  feature-tests:
+    if: github.event_name == 'pull_request' && github.head_ref == 'reengineering/phase0-2-20261025'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [phase, full]
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: totalplus_ci_isolated
+          MYSQL_USER: qa_runner
+          MYSQL_PASSWORD: qa_runner_ephemeral
+          MYSQL_ROOT_PASSWORD: qa_root_ephemeral
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -pqa_root_ephemeral"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'true'
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: totalplus_ci_isolated
+      DB_USERNAME: qa_runner
+      DB_PASSWORD: qa_runner_ephemeral
+      CACHE_DRIVER: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: array
+      TELESCOPE_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, dom, fileinfo, pdo_mysql, xml, curl, zip, bcmath
+          coverage: none
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+      - name: Configure ephemeral Laravel application
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+      - name: Verify isolated database target
+        run: |
+          test "$DB_DATABASE" = "totalplus_ci_isolated"
+          php artisan tinker --execute="if (DB::connection()->getDatabaseName() !== 'totalplus_ci_isolated') { throw new RuntimeException('Unexpected database'); } echo 'CI database isolated'.PHP_EOL;"
+      - name: Run Laravel tests
+        run: |
+          if [ "${{ matrix.suite }}" = "phase" ]; then
+            php artisan test tests/Feature/Reengineering tests/Feature/Security
+          else
+            php artisan test
+          fi

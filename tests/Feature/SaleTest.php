@@ -2,86 +2,74 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Foundation\Testing\WithFaker;
-use Tests\TestCase;
+use App\Models\Customer;
 use App\Models\Sale;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Support\AuthenticatedCompany;
+use Tests\TestCase;
 
+/**
+ * Current sales endpoint contract. Product/stock/valid sale creation are
+ * covered separately by SaleBaselineTest and SaleTransactionStorePhase3Test.
+ */
 class SaleTest extends TestCase
 {
-    use RefreshDatabase, WithFaker;
+    use RefreshDatabase;
+    use AuthenticatedCompany;
 
-    public function test_store_sale()
+    private function sale(): Sale
     {
-        $customer = \App\Models\Customer::factory()->create();
-        $product = \App\Models\Product::factory()->create();
+        $customer = Customer::create([
+            'company_id' => $this->qaCompany->id,
+            'client_id' => 700001,
+            'name' => 'QA customer', 'address' => 'QA',
+            'phone' => '123456',
+        ]);
 
-        $data = [
-            'product_id' => $product->id, 
-            'customer_id' => $customer->id, 
-            'quantity' => $this->faker->numberBetween($min = 1, $max = 10),
-        ];
-
-        $response = $this->postJson('/api/sales', $data);
-
-        $response->assertStatus(201)
-            ->assertJson($data);
+        return Sale::create([
+            'company_id' => $this->qaCompany->id,
+            'customer_id' => $customer->id,
+            'seller_id' => $this->qaAdmin->id,
+            'total_amount' => 123.50,
+            'type_of_sale' => 'normal',
+        ]);
     }
 
-    public function test_show_sale()
+    public function test_store_sale_rejects_incomplete_payload(): void
     {
-        $sale = \App\Models\Sale::factory()->create(['quantity' => 5]);
-        //$customer = \App\Models\Customer::factory()->create();
-        $product = \App\Models\Product::factory()->create();
-
-        $response = $this->getJson('/api/sales/' . $sale->id);
-
-        $response->assertStatus(200)
-            ->assertJson([
-                'id' => $sale->id,
-                'quantity' => 5,
-            ]);
+        $this->postJson('/api/sales', ['total' => 100])
+            ->assertStatus(422);
+        $this->assertSame(0, Sale::count());
     }
 
-    public function test_put_sale()
+    public function test_show_sale(): void
     {
-        $customer = \App\Models\Customer::factory()->create();
-        $sale = \App\Models\Sale::factory()->create();
-        $product = \App\Models\Product::factory()->create();
-        $quantity =  5;
-        
-        $data = [
-            'product_id' => $product->id, 
-            'customer_id' => $customer->id, 
-            'quantity' => $quantity,
-        ];
-
-        $response = $this->putJson('/api/sales/' . $sale->id, $data);
-
-        $response->assertStatus(200)
-            ->assertJson([
-                'id' => $sale->id,
-                'quantity' => $quantity,
-            ]);
-
+        $sale = $this->sale();
+        $this->getJson('/api/sales/' . $sale->id)
+            ->assertOk()
+            ->assertJsonPath('id', $sale->id);
     }
 
-    public function test_destroy_sale()
+    public function test_put_sale_rejects_client_total_override(): void
     {
-        $sale = \App\Models\Sale::factory()->create();
-
-        $response = $this->deleteJson('/api/sales/' . $sale->id);
-
-        $response->assertStatus(204);
-
-        $this->assertDatabaseMissing('sales', ['id' => $sale->id]);
-
+        $sale = $this->sale();
+        $this->putJson('/api/sales/' . $sale->id, ['total_amount' => 0])
+            ->assertStatus(422);
+        $this->assertSame(123.5, (float) $sale->fresh()->total_amount);
     }
-    
-    public function test_example()
-    {
-        $response = $this->get('/');
 
-        $response->assertStatus(200);
+    public function test_destroy_sale_preserves_audit_history(): void
+    {
+        $sale = $this->sale();
+        $this->deleteJson('/api/sales/' . $sale->id)->assertNoContent();
+        $this->assertNotNull($sale->fresh());
+        $this->assertNotNull($sale->fresh()->voided_at);
+        $this->assertSame(123.5, (float) $sale->fresh()->total_amount);
+        $this->deleteJson('/api/sales/' . $sale->id)->assertStatus(422);
+    }
+
+    public function test_example(): void
+    {
+        $this->get('/')->assertOk();
     }
 }

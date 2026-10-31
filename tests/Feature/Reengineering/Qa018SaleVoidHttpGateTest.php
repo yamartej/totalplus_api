@@ -26,7 +26,23 @@ use Tests\TestCase;
  */
 class Qa018SaleVoidHttpGateTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase {
+        refreshDatabase as private performDisposableDatabaseRefresh;
+    }
+
+    // RefreshDatabase normally executes before any test method.
+    // Guard the hook itself so a local QA or production DB cannot be reset.
+    public function refreshDatabase()
+    {
+        $database = \\DB::connection()->getDatabaseName();
+        if (!$this->app->environment('testing') || $database !== 'totalplus_ci_qa018') {
+            throw new \\RuntimeException(
+                'QA-018 is CI only. Refusing to migrate/reset database: ' . $database
+            );
+        }
+
+        $this->performDisposableDatabaseRefresh();
+    }
 
     public function test_sale_is_created_and_voided_exactly_once_via_authenticated_http(): void
     {

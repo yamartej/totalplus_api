@@ -64,3 +64,33 @@ Las pantallas fueron comprobadas en modo consulta; **no se ejecutó manualmente 
 - No cambiar la rama `main` ni producción sin una decisión de despliegue por separado.
 
 **Estado resumido:** desarrollo y validación QA Fases 0–2: **cerrados**; promoción a producción y prueba manual end-to-end de anulación: **pendientes explícitos**.
+
+
+---
+
+## 5. Actualización QA-018 — 31 de octubre de 2026: cierre de verificación técnica mediante CI aislada
+
+El intento de verificación en XAMPP no pudo arrancar: el validador local se detuvo en la conexión MySQL con `SQLSTATE[HY000] [1045] Access denied for user 'root'@'localhost'`. El log indica que **no creó base descartable ni ejecutó la prueba**; por tanto, ese intento NO es evidencia de aceptación.
+
+Para evitar modificar credenciales locales o manipular las bases existentes, se implementó un test adicional de **integración HTTP autenticada**: `tests/Feature/Reengineering/Qa018SaleVoidHttpGateTest.php`. La comprobación se realiza en los servicios MySQL/MariaDB temporales de GitHub Actions. El propio test se niega a ejecutar su migración de preparación fuera de GitHub Actions y fuera de la lista exacta de bases temporales de CI.
+
+**Evidencia reproducible al commit `c71ff4db5f38c520ded2ded4680b995c5ff5be0d`:**
+
+| Prueba | Resultado | Evidencia |
+|---|---|---|
+| MySQL 8, suite completa | **287/287 PASS** | https://github.com/yamartej/totalplus_api/actions/runs/41204832948 |
+| MySQL 8, reingeniería/seguridad | **141/141 PASS** | misma ejecución |
+| MariaDB 10.11, suite completa | **287/287 PASS** | https://github.com/yamartej/totalplus_api/actions/runs/41204832960 |
+| PHP, validación estática | **PASS** | https://github.com/yamartej/totalplus_api/actions/runs/41204832954 |
+
+**El caso QA-018 prueba por solicitudes HTTP autenticadas:**
+
+1. `POST /api/sales` crea una venta con un producto tomado de dos almacenes y resta los saldos correctos.
+2. `DELETE /api/sales/{id}` devuelve la cantidad exacta a cada almacén, con dos entradas `sale_void` y balances anterior/posterior comprobados en Kardex.
+3. La venta anulada y los dos detalles permanecen conservados con `voided_at`, `voided_by` y `void_reason`.
+4. La venta desaparece de informes comerciales activos y permanece en consulta histórica.
+5. Un segundo `DELETE` devuelve HTTP 422 y no duplica existencias ni movimientos.
+
+**Dictamen actualizado:** QA-018 **APROBADA como verificación técnica de la API en CI aislada**, en sustitución del intento local fallido. Esto sustituye solo el **control técnico** marcado como pendiente en la sección 4; **no afirma** haber realizado una prueba visual de botón de anulación, una ejecución de usuario en XAMPP ni una prueba sobre datos reales. La interfaz heredada no dispone de ese botón.
+
+El cierre funcional de Fases 0–2 se mantiene sujeto a revisión y autorización de los PR antes de fusionar a `main`. La integración a `main` y cualquier despliegue a producción requieren decisiones expresas y separadas. Las bases QA locales `totalplus_phase02_testing` y `totalplus_phase3_qa_20261028_184456` no se usaron en GitHub Actions.

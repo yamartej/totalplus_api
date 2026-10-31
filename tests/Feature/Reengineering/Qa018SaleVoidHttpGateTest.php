@@ -35,7 +35,16 @@ class Qa018SaleVoidHttpGateTest extends TestCase
     public function refreshDatabase()
     {
         $database = \DB::connection()->getDatabaseName();
-        if (!$this->app->environment('testing') || $database !== 'totalplus_ci_qa018') {
+        $allowedDatabases = [
+            'totalplus_ci_isolated',
+            'totalplus_ci_mariadb',
+            'totalplus_ci_qa018',
+        ];
+        if (
+            getenv('GITHUB_ACTIONS') !== 'true'
+            || !$this->app->environment('testing')
+            || !in_array($database, $allowedDatabases, true)
+        ) {
             throw new \RuntimeException(
                 'QA-018 is CI only. Refusing to migrate/reset database: ' . $database
             );
@@ -48,7 +57,9 @@ class Qa018SaleVoidHttpGateTest extends TestCase
     {
         // Fail closed if this class is inadvertently run against a local DB.
         $database = \DB::connection()->getDatabaseName();
-        $this->assertSame('totalplus_ci_qa018', $database);
+        $this->assertContains($database, [
+            'totalplus_ci_isolated', 'totalplus_ci_mariadb', 'totalplus_ci_qa018',
+        ]);
 
         $company = Company::create(['name' => 'QA018 CI only']);
         $user = User::factory()->create(['company_id' => $company->id]);

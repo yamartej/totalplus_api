@@ -15,17 +15,45 @@ use Tests\TestCase;
 
 class GlobalWriteCompanyContextPhase3Test extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase {
+        refreshDatabase as private performGuardedDatabaseRefresh;
+    }
 
     private $pointOfSale;
     private $sale;
 
-    protected function setUp(): void
+    private function assertAllowedDatabaseTarget(): void
     {
-        if (getenv('DB_DATABASE') !==
-            'totalplus_phase3_functional_qa_20261031_204833') {
+        $database = getenv('DB_DATABASE');
+        $localQa = $database === 'totalplus_phase3_functional_qa_20261031_204833';
+        $ciQa = getenv('GITHUB_ACTIONS') === 'true'
+            && in_array($database, [
+                'totalplus_ci_isolated',
+                'totalplus_ci_mariadb',
+            ], true);
+
+        if (!$localQa && !$ciQa) {
             throw new \RuntimeException('QA database guard failed.');
         }
+    }
+
+    public function refreshDatabase()
+    {
+        $this->assertAllowedDatabaseTarget();
+
+        if (
+            !$this->app->environment('testing') ||
+            \DB::connection()->getDatabaseName() !== getenv('DB_DATABASE')
+        ) {
+            throw new \RuntimeException('QA database connection guard failed.');
+        }
+
+        $this->performGuardedDatabaseRefresh();
+    }
+
+    protected function setUp(): void
+    {
+        $this->assertAllowedDatabaseTarget();
 
         parent::setUp();
 

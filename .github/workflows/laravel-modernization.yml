@@ -56,7 +56,7 @@ jobs:
       - name: Show resolved Laravel version
         run: composer show laravel/framework
       - name: Audit all production dependencies before running tests
-        run: composer audit --no-dev --format=plain
+        run: composer audit --no-dev --format=plain --abandoned=report
       - name: Configure disposable Laravel app
         run: |
           cp .env.example .env

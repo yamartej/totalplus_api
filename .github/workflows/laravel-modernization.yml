@@ -52,7 +52,7 @@ jobs:
           extensions: mbstring, dom, fileinfo, pdo_mysql, xml, curl, zip, bcmath
           coverage: none
       - name: Resolve and install upgraded dependencies in ephemeral runner
-        run: composer update --with-all-dependencies --no-scripts --no-plugins --prefer-dist --no-interaction --no-progress --no-audit
+        run: COMPOSER_POLICY_ADVISORIES_BLOCK=0 composer update --with-all-dependencies --no-scripts --no-plugins --prefer-dist --no-interaction --no-progress --no-audit
       - name: Show resolved Laravel version
         run: composer show laravel/framework
       - name: Configure disposable Laravel app

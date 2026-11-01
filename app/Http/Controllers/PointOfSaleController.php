@@ -98,7 +98,11 @@ class PointOfSaleController extends Controller
             'identifier' => 'required|string|max:255',
             'ubication' => 'required|string|max:255',
         ]);
-
+        $tenant->resolveCompanyId(
+            $request->user(),
+            $request->input('company_id'),
+            true
+        );
         [$query, $companyId] = $this->tenantQuery(
             $request,
             $tenant
@@ -151,6 +155,11 @@ class PointOfSaleController extends Controller
         Request $request,
         TenantContext $tenant
     ) {
+        $tenant->resolveCompanyId(
+            $request->user(),
+            $request->input('company_id'),
+            true
+        );
         [$query] = $this->tenantQuery($request, $tenant);
 
         $pop = $query->where('id', $id)->first();
@@ -199,7 +208,7 @@ class PointOfSaleController extends Controller
         if ($pops->isEmpty()) {
             return response()->json([
                 'message' =>
-                    'No se encontraron puntos de venta para esta empresa',
+                'No se encontraron puntos de venta para esta empresa',
             ], 404);
         }
 

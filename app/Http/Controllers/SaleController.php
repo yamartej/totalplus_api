@@ -134,7 +134,7 @@ class SaleController extends Controller
             'carts.*.productId' => 'required|exists:products,id',
             'carts.*.quantity' => 'required|integer|min:1',
             'carts.*.warehouse_id' =>
-                'sometimes|nullable|integer|exists:warehouses,id',
+            'sometimes|nullable|integer|exists:warehouses,id',
             'type_of_sale' => 'required|in:normal,credit',
         ]);
 
@@ -226,6 +226,11 @@ class SaleController extends Controller
         $id,
         TenantContext $tenant
     ) {
+        $tenant->resolveCompanyId(
+            $request->user(),
+            $this->requestedCompanyId($request),
+            true
+        );
         [$query] = $this->scopeSales(
             Sale::where('id', $id),
             $request,
@@ -267,6 +272,11 @@ class SaleController extends Controller
         TenantContext $tenant,
         SaleTransactionService $sales
     ) {
+        $tenant->resolveCompanyId(
+            $request->user(),
+            $this->requestedCompanyId($request),
+            true
+        );
         [$query, $companyId] = $this->scopeSales(
             Sale::where('id', $id),
             $request,
@@ -289,7 +299,7 @@ class SaleController extends Controller
         if ($companyId === null) {
             return response()->json([
                 'message' =>
-                    'No se puede determinar la empresa de la venta.',
+                'No se puede determinar la empresa de la venta.',
             ], 422);
         }
 
@@ -360,7 +370,7 @@ class SaleController extends Controller
             return [
                 'customer_id' => $item->customer_id,
                 'customer_name' =>
-                    $customer ? $customer->name : null,
+                $customer ? $customer->name : null,
                 'total_debt' => $item->total_debt,
                 'payments' => $payments,
             ];
@@ -416,17 +426,17 @@ class SaleController extends Controller
 
         $sellerId =
             (int) $authenticatedUser->company_id === $companyId
-                ? $authenticatedUser->id
-                : null;
+            ? $authenticatedUser->id
+            : null;
 
         $sale = Sale::create([
             'customer_id' => $customer->id,
             'seller_id' => $sellerId,
             'total_amount' => $request->input('amount'),
             'credit_note_date' =>
-                $request->input('credit_note_date', now()),
+            $request->input('credit_note_date', now()),
             'credit_note_detail' =>
-                $request->input('credit_note_detail', ''),
+            $request->input('credit_note_detail', ''),
             'pop_id' => $popId,
             'type_of_sale' => 'credit',
             'company_id' => $companyId,
@@ -453,7 +463,7 @@ class SaleController extends Controller
                 'sale_id' => $sale->id,
                 'customer_id' => $sale->customer_id,
                 'customer_name' =>
-                    $sale->customer ? $sale->customer->name : null,
+                $sale->customer ? $sale->customer->name : null,
                 'total_amount' => $sale->total_amount,
                 'credit_note_date' => $sale->credit_note_date,
                 'credit_note_detail' => $sale->credit_note_detail,
@@ -488,7 +498,7 @@ class SaleController extends Controller
                 'sale_id' => $sale->id,
                 'customer_id' => $sale->customer_id,
                 'customer_name' =>
-                    $sale->customer ? $sale->customer->name : null,
+                $sale->customer ? $sale->customer->name : null,
                 'total_amount' => $sale->total_amount,
                 'credit_note_date' => $sale->credit_note_date,
                 'credit_note_detail' => $sale->credit_note_detail,
@@ -534,7 +544,7 @@ class SaleController extends Controller
             return [
                 'customer_id' => $item->customer_id,
                 'customer_name' =>
-                    $customer ? $customer->name : null,
+                $customer ? $customer->name : null,
                 'total_debt' => $item->total_debt,
                 'payments' => $payments,
             ];

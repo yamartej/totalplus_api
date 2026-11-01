@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Category;
 use App\Models\Company;
+use App\Models\Inventory;
 use App\Models\Menu;
 use App\Models\Permission;
 use App\Models\Product;
@@ -41,7 +42,7 @@ class NavigationE2eSeeder extends Seeder
             $companyA = Company::create(['name' => 'QA Navigation Company Alpha']);
             $companyB = Company::create(['name' => 'QA Navigation Company Beta']);
 
-            Warehouse::create([
+            $primary = Warehouse::create([
                 'name' => 'QA Alpha Principal',
                 'address' => 'Synthetic QA address',
                 'company_id' => $companyA->id,
@@ -69,6 +70,14 @@ class NavigationE2eSeeder extends Seeder
             ]);
             $product->company_id = $companyA->id;
             $product->save();
+
+            // Synthetic inventory only. The browser test transfers 2 units
+            // and verifies the corresponding debit and credit in Kardex.
+            Inventory::create([
+                'product_id' => $product->id,
+                'warehouse_id' => $primary->id,
+                'quantity' => 7,
+            ]);
 
             $profiles = [
                 ['seller', 'QA Vendedor', $companyA->id,

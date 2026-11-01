@@ -69,7 +69,7 @@ jobs:
         run: php artisan test
       - name: Require Laravel 12 and Flysystem 3
         run: |
-          php -r 'require "vendor/autoload.php"; foreach (["laravel/framework" => "12", "league/flysystem" => "3"] as $p => $major) { $v = Composer\\InstalledVersions::getPrettyVersion($p); if (!$v || !preg_match("/^v?" . $major . "\\./", $v)) { fwrite(STDERR, "$p unexpected version: $v\\n"); exit(1); } echo "$p $v\\n"; }'
+          php -r 'require "vendor/autoload.php"; foreach (["laravel/framework" => "12", "league/flysystem" => "3"] as $p => $major) { $v = Composer\InstalledVersions::getPrettyVersion($p); if (!$v || !preg_match("/^v?" . $major . "\\./", $v)) { fwrite(STDERR, "$p unexpected version: $v\\n"); exit(1); } echo "$p $v\\n"; }'
       - name: Require clean production dependency security audit
         run: composer audit --no-dev --format=summary
       - name: Persist validated lockfile on isolated modernization branch

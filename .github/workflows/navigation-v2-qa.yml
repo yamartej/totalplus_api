@@ -1,0 +1,122 @@
+name: TotalPlus Navigation V2 - backend QA
+on:
+  push:
+    branches:
+      - feature/navigation-v2-20261101
+  pull_request:
+    branches:
+      - modernization/laravel12-isolated-20261101
+
+permissions:
+  contents: read
+
+jobs:
+  mysql-full:
+    if: github.event_name == 'push' || github.head_ref == 'feature/navigation-v2-20261101'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: totalplus_ci_isolated
+          MYSQL_USER: qa_runner
+          MYSQL_PASSWORD: qa_ephemeral_only
+          MYSQL_ROOT_PASSWORD: qa_root_ephemeral_only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -pqa_root_ephemeral_only"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'true'
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: totalplus_ci_isolated
+      DB_USERNAME: qa_runner
+      DB_PASSWORD: qa_ephemeral_only
+      CACHE_DRIVER: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: array
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, dom, fileinfo, pdo_mysql, xml, curl, zip, bcmath
+          coverage: none
+      - name: Install locked dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+      - name: Audit production dependencies (report abandoned packages)
+        run: composer audit --no-dev --format=plain --abandoned=report
+      - name: Configure ephemeral application
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+      - name: Verify disposable MySQL connection
+        run: |
+          test "$DB_DATABASE" = "totalplus_ci_isolated"
+          php artisan tinker --execute="if (DB::connection()->getDatabaseName() !== 'totalplus_ci_isolated') { throw new RuntimeException('Unexpected database'); }"
+      - name: Run full Laravel suite including QA-018
+        run: php artisan test
+
+  mariadb-full:
+    if: github.event_name == 'push' || github.head_ref == 'feature/navigation-v2-20261101'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_DATABASE: totalplus_ci_mariadb
+          MARIADB_USER: qa_runner
+          MARIADB_PASSWORD: qa_ephemeral_only
+          MARIADB_ROOT_PASSWORD: qa_root_ephemeral_only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping -h localhost -u root -pqa_root_ephemeral_only"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'true'
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: totalplus_ci_mariadb
+      DB_USERNAME: qa_runner
+      DB_PASSWORD: qa_ephemeral_only
+      CACHE_DRIVER: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: array
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, dom, fileinfo, pdo_mysql, xml, curl, zip, bcmath
+          coverage: none
+      - name: Install locked dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+      - name: Audit production dependencies (report abandoned packages)
+        run: composer audit --no-dev --format=plain --abandoned=report
+      - name: Configure ephemeral application
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan config:clear
+      - name: Verify disposable MariaDB connection
+        run: |
+          test "$DB_DATABASE" = "totalplus_ci_mariadb"
+          php artisan tinker --execute="if (DB::connection()->getDatabaseName() !== 'totalplus_ci_mariadb') { throw new RuntimeException('Unexpected database'); }"
+      - name: Run full Laravel suite including QA-018
+        run: php artisan test

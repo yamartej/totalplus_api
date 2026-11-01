@@ -1,0 +1,86 @@
+name: TotalPlus modernization - Laravel staged migration
+on:
+  push:
+    branches:
+      - modernization/laravel12-isolated-20261101
+  pull_request:
+    branches:
+      - qa/phase3-functional-20261031
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mysql-migration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: totalplus_ci_isolated
+          MYSQL_USER: qa_runner
+          MYSQL_PASSWORD: qa_ephemeral_only
+          MYSQL_ROOT_PASSWORD: qa_root_ephemeral_only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u root -pqa_root_ephemeral_only"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'true'
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: totalplus_ci_isolated
+      DB_USERNAME: qa_runner
+      DB_PASSWORD: qa_ephemeral_only
+      CACHE_DRIVER: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: array
+      TELESCOPE_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, dom, fileinfo, pdo_mysql, xml, curl, zip, bcmath
+          coverage: none
+      - name: Resolve and install upgraded dependencies in ephemeral runner
+        run: composer update --with-all-dependencies --no-scripts --no-plugins --prefer-dist --no-interaction --no-progress --no-audit
+      - name: Show resolved Laravel version
+        run: composer show laravel/framework
+      - name: Audit all production dependencies before running tests
+        run: composer audit --no-dev --format=plain --abandoned=report
+      - name: Configure disposable Laravel app
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          php artisan package:discover
+          php artisan config:clear
+      - name: Assert CI database is isolated
+        run: |
+          test "$DB_DATABASE" = "totalplus_ci_isolated"
+          php artisan tinker --execute="if (DB::connection()->getDatabaseName() !== 'totalplus_ci_isolated') { throw new RuntimeException('Unexpected database'); }"
+      - name: Run full existing Laravel regression suite including QA-018
+        run: php artisan test
+      - name: Require Laravel 12 and Flysystem 3
+        run: |
+          php -r 'require "vendor/autoload.php"; foreach (["laravel/framework" => "12", "league/flysystem" => "3"] as $p => $major) { $v = Composer\InstalledVersions::getPrettyVersion($p); if (!$v || !preg_match("/^v?" . $major . "\\./", $v)) { fwrite(STDERR, "$p unexpected version: $v\\n"); exit(1); } echo "$p $v\\n"; }'
+      - name: Persist validated lockfile on isolated modernization branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/modernization/laravel12-isolated-20261101'
+        run: |
+          git add composer.lock
+          if git diff --cached --quiet; then
+            echo "Composer lockfile is already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore(modernization): lock tested Laravel 12 dependencies"
+          git push origin "HEAD:refs/heads/modernization/laravel12-isolated-20261101"

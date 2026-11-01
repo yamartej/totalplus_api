@@ -63,6 +63,8 @@ jobs:
         run: |
           test "$DB_DATABASE" = "totalplus_ci_isolated"
           php artisan tinker --execute="if (DB::connection()->getDatabaseName() !== 'totalplus_ci_isolated') { throw new RuntimeException('Unexpected database'); }"
+      - name: Verify navigation grants and migration first
+        run: php artisan test tests/Feature/Security/BusinessNavigationV2Test.php
       - name: Run full Laravel suite including QA-018
         run: php artisan test
 
@@ -118,5 +120,7 @@ jobs:
         run: |
           test "$DB_DATABASE" = "totalplus_ci_mariadb"
           php artisan tinker --execute="if (DB::connection()->getDatabaseName() !== 'totalplus_ci_mariadb') { throw new RuntimeException('Unexpected database'); }"
+      - name: Verify navigation grants and migration first
+        run: php artisan test tests/Feature/Security/BusinessNavigationV2Test.php
       - name: Run full Laravel suite including QA-018
         run: php artisan test

@@ -3,6 +3,9 @@ on:
   push:
     branches:
       - modernization/laravel12-isolated-20261101
+  pull_request:
+    branches:
+      - qa/phase3-functional-20261031
   workflow_dispatch:
 
 permissions:

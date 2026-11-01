@@ -31,12 +31,49 @@ class MenuController extends Controller
             return response()->json([]);
         }
 
-        $menuItems = Menu::query()
-            ->whereIn('id', $menuIds)
+        $menus = Menu::query()
             ->orderBy('order')
             ->orderBy('id')
             ->get();
+        $byId = $menus->keyBy('id');
+        $visibleIds = [];
 
-        return response()->json($menuItems);
+        // A parent is a navigation container, not an additional API grant.
+        // Include ancestors of accessible leaves without exposing siblings.
+        foreach ($menuIds as $menuId) {
+            $current = $byId->get((int) $menuId);
+            $seen = [];
+
+            while ($current && !isset($seen[$current->id])) {
+                $seen[$current->id] = true;
+                $visibleIds[$current->id] = true;
+                $current = $current->parent_id === null
+                    ? null
+                    : $byId->get((int) $current->parent_id);
+            }
+        }
+
+        $visible = $menus->filter(function (Menu $menu) use (
+            $menus, $visibleIds
+        ): bool {
+            if (!isset($visibleIds[$menu->id])) {
+                return false;
+            }
+
+            // Hide empty headings left from legacy navigation structures.
+            if (
+                $menu->parent_id === null
+                && str_starts_with($menu->url, '/menu/')
+            ) {
+                return $menus->contains(fn (Menu $child) =>
+                    (int) $child->parent_id === (int) $menu->id
+                    && isset($visibleIds[$child->id])
+                );
+            }
+
+            return true;
+        })->values();
+
+        return response()->json($visible);
     }
 }

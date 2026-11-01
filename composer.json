@@ -15,7 +15,7 @@
         "laravel/ui": "^3.4",
         "nyholm/psr7": "^1.8",
         "railsware/mailtrap-php": "^1.7",
-        "symfony/http-client": "^6.2"
+        "symfony/http-client": "5.4.53"
     },
     "require-dev": {
         "facade/ignition": "^2.5",

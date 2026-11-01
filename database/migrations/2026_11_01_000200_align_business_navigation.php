@@ -26,6 +26,7 @@ return new class extends Migration
             ['/menu/inventory', 'Inventario', 'StockIcon', [
                 ['Existencias', '/pages/stocks'],
                 ['Kardex de movimientos', '/pages/kardex'],
+                ['Transferencias entre almacenes', '/pages/transfers'],
                 ['Almacenes', '/pages/warehouses'],
                 ['Lotes', '/pages/batchs'],
             ]],

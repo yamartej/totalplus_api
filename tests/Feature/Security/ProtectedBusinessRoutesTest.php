@@ -14,7 +14,7 @@ class ProtectedBusinessRoutesTest extends TestCase
         $this->getJson($uri)->assertStatus(401);
     }
 
-    public function protectedGetRoutes(): array
+    public static function protectedGetRoutes(): array
     {
         return [
             'sales list' => ['/api/sales'],
